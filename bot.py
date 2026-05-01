@@ -165,7 +165,7 @@ async def on_message(message):
     # --- Sistema de IA ---
     if message.channel.id == CANAL_IA and IA_ACTIVA and debe_responder(message):
         ahora = time.time()
-        if ahora - ultimo_mensaje_global_ia >= 60:
+        if ahora - ultimo_mensaje_global_ia >= 2:
             ultimo_mensaje_global_ia = ahora
             if message.author.id in USUARIOS_BONITOS:
                 personalidad_usar = PERSONALIDAD_BONITA
