@@ -35,9 +35,8 @@ PERSONALIDAD_BASE = (
     "Reglas:\n"
     "- Copia su forma de escribir, sus palabras favoritas, sus expresiones, sus errores tipicos\n"
     "- Si el no usa puntuacion, tu tampoco. Si escribe en minusculas, tu igual\n"
-    "- Responde como el responderia, con su mismo tono y personalidad\n"
+    "- Responde especificamente a lo que te preguntaron o dijeron, no digas cosas al azar\n"
     "- NO seas siempre afirmativo, a veces discrepa, contradice o ignora\n"
-    "- Cambia de tema si se te antoja, haz preguntas random\n"
     "- Maximo 1-3 oraciones, entre menos palabras mejor\n"
     "- Tienes opiniones propias, no le das la razon a todo\n"
     "- JAMAS uses frases genericas como claro, entendido, que bien\n"
@@ -66,9 +65,8 @@ PERSONALIDAD_RANDOM = (
 # -----------------------
 
 ultimo_mensaje = {}
-ultimo_mensaje_global_ia = 0
-historial = deque(maxlen=MAX_HISTORIAL)
 estilo_usuario = ""
+historial = deque(maxlen=MAX_HISTORIAL)
 groq_client = Groq(api_key=GROQ_API_KEY)
 
 intents = discord.Intents.default()
@@ -97,7 +95,7 @@ async def cargar_estilo():
             mensajes_usuario.append(msg.content)
     if mensajes_usuario:
         muestra = "\n".join(mensajes_usuario[:150])
-        estilo_usuario = f"Estos son ejemplos reales de como escribe el usuario, imita su estilo exactamente:\n{muestra}\n"
+        estilo_usuario = f"Estos son ejemplos reales de como escribe el usuario, usa esto solo como referencia de estilo:\n{muestra}\n"
         print(f"Estilo cargado con {len(mensajes_usuario)} mensajes")
 
 async def mensaje_random():
@@ -128,7 +126,7 @@ async def on_ready():
 
 @client.event
 async def on_message(message):
-    global ultimo_mensaje_global_ia, IA_ACTIVA
+    global IA_ACTIVA
 
     if message.author == client.user:
         return
@@ -173,38 +171,38 @@ async def on_message(message):
         if canal_destino:
             await canal_destino.send(message.content)
 
-   # --- Guardar mensajes del canal IA en historial ---
+    # --- Guardar mensajes del canal IA en historial ---
     if message.channel.id == CANAL_IA:
         historial.append({
             "role": "user",
             "content": f"{message.author.display_name}: {message.content}"
         })
-        
+
     # --- Sistema de IA ---
     if message.channel.id == CANAL_IA and IA_ACTIVA and debe_responder(message):
-        ahora = time.time()
-        if ahora - ultimo_mensaje_global_ia >= 2:
-            ultimo_mensaje_global_ia = ahora
 
-            if message.content.strip().lower() == "xiora":
-                respuesta_texto = random.choice(["que paso", "dime", "mande"])
-                await message.reply(respuesta_texto)
-                return
+        if message.content.strip().lower() == "xiora":
+            respuesta_texto = random.choice(["que paso", "dime", "mande"])
+            await message.reply(respuesta_texto)
+            return
 
-            if message.author.id in USUARIOS_BONITOS:
-                personalidad_usar = PERSONALIDAD_BONITA
-            else:
-                personalidad_usar = PERSONALIDAD_BASE + "\n" + estilo_usuario
+        if message.author.id in USUARIOS_BONITOS:
+            personalidad_usar = PERSONALIDAD_BONITA
+        else:
+            personalidad_usar = PERSONALIDAD_BASE + "\n" + estilo_usuario
 
-            async with message.channel.typing():
-                mensajes = [{"role": "system", "content": personalidad_usar}]
-                mensajes += list(historial)
-                respuesta = groq_client.chat.completions.create(
-                    model="llama-3.3-70b-versatile",
-                    messages=mensajes
-                )
-                respuesta_texto = respuesta.choices[0].message.content
-                historial.append({"role": "assistant", "content": respuesta_texto})
-                await message.reply(respuesta_texto)
+        async with message.channel.typing():
+            contexto = "\n".join([f"{m['role']}: {m['content']}" for m in historial])
+            mensajes = [
+                {"role": "system", "content": personalidad_usar},
+                {"role": "user", "content": f"Conversacion actual:\n{contexto}\n\nResponde al ultimo mensaje de {message.author.display_name}: {message.content}"}
+            ]
+            respuesta = groq_client.chat.completions.create(
+                model="llama-3.3-70b-versatile",
+                messages=mensajes
+            )
+            respuesta_texto = respuesta.choices[0].message.content
+            historial.append({"role": "assistant", "content": respuesta_texto})
+            await message.reply(respuesta_texto)
 
 client.run(TOKEN)
