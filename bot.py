@@ -64,7 +64,7 @@ async def on_message(message):
     if message.channel.id == CANAL_IA:
         async with message.channel.typing():
             respuesta = groq_client.chat.completions.create(
-                model="llama3-70b-8192",
+                model="llama-3.3-70b-versatile",
                 messages=[
                     {"role": "system", "content": PERSONALIDAD},
                     {"role": "user", "content": f"{message.author.name} dice: {message.content}"}
