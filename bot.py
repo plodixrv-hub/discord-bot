@@ -116,11 +116,11 @@ async def on_message(message):
         if canal_destino:
             await canal_destino.send(message.content)
 
-    # --- Guardar mensajes del canal IA en historial ---
+   # --- Guardar mensajes del canal IA en historial ---
     if message.channel.id == CANAL_IA:
         historial.append({
             "role": "user",
-            "content": f"{message.author.name}: {message.content}"
+            "content": message.content
         })
 
     # --- Sistema de IA ---
