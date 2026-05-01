@@ -4,7 +4,7 @@ import time
 
 # ---- CONFIGURACIÓN ----
 TOKEN = os.environ["TOKEN"]
-COOLDOWN = 30  # segundos
+COOLDOWN = 120  # segundos
 
 # Usuarios a monitorear y sus mensajes
 CANAL_MONITOREO = 1442319575940075612  # canal donde monitoreas usuarios
