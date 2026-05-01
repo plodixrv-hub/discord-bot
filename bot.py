@@ -7,6 +7,7 @@ TOKEN = os.environ["TOKEN"]
 USUARIO_ID = 1438446211400073277     # Cambia esto por el ID del usuario
 CANAL_ID = 1442319575940075612        # Cambia esto por el ID del canal
 MENSAJE_RESPUESTA = "ya callate we {mención}"
+COOLDOWN = 2  # segundos
 # -----------------------
 
 ultimo_mensaje = 0
