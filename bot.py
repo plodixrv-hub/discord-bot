@@ -70,7 +70,7 @@ async def on_message(message):
     if message.channel.id == CANAL_IA:
         ahora = time.time()
         ultimo = ultimo_mensaje.get(f"ia_{message.author.id}", 0)
-        if ahora - ultimo >= 140:
+        if ahora - ultimo >= 30:
             ultimo_mensaje[f"ia_{message.author.id}"] = ahora
             async with message.channel.typing():
                 respuesta = groq_client.chat.completions.create(
