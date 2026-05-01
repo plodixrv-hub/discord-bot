@@ -3,12 +3,12 @@ import os
 import time
 import random
 import asyncio
-from groq import Groq
+import google.generativeai as genai
 from collections import deque
 
 # ---- CONFIGURACION ----
 TOKEN = os.environ["TOKEN"]
-GROQ_API_KEY = os.environ["GROQ_API_KEY"]
+GEMINI_API_KEY = os.environ["GEMINI_API_KEY"]
 COOLDOWN = 30
 
 CANAL_MONITOREO = 987654321098765432
@@ -67,7 +67,9 @@ PERSONALIDAD_RANDOM = (
 ultimo_mensaje = {}
 estilo_usuario = ""
 historial = deque(maxlen=MAX_HISTORIAL)
-groq_client = Groq(api_key=GROQ_API_KEY)
+
+genai.configure(api_key=GEMINI_API_KEY)
+model_ia = genai.GenerativeModel("gemini-2.0-flash")
 
 intents = discord.Intents.default()
 intents.message_content = True
@@ -94,7 +96,7 @@ async def cargar_estilo():
         if msg.author.id == TU_ID and msg.content:
             mensajes_usuario.append(msg.content)
     if mensajes_usuario:
-        muestra = "\n".join(mensajes_usuario[:150])
+        muestra = "\n".join(mensajes_usuario[:30])
         estilo_usuario = f"Estos son ejemplos reales de como escribe el usuario, usa esto solo como referencia de estilo:\n{muestra}\n"
         print(f"Estilo cargado con {len(mensajes_usuario)} mensajes")
 
@@ -108,14 +110,9 @@ async def mensaje_random():
         canal = client.get_channel(CANAL_IA)
         if canal:
             try:
-                respuesta = groq_client.chat.completions.create(
-                    model="llama-3.3-70b-versatile",
-                    messages=[
-                        {"role": "system", "content": PERSONALIDAD_RANDOM + "\n" + estilo_usuario},
-                        {"role": "user", "content": "manda algo random para sacar platica"}
-                    ]
-                )
-                texto = respuesta.choices[0].message.content
+                prompt = PERSONALIDAD_RANDOM + "\n" + estilo_usuario + "\nmanda algo random para sacar platica"
+                respuesta = model_ia.generate_content(prompt)
+                texto = respuesta.text
                 historial.append({"role": "assistant", "content": texto})
                 await canal.send(texto)
             except Exception as e:
@@ -197,15 +194,13 @@ async def on_message(message):
         async with message.channel.typing():
             try:
                 contexto = "\n".join([f"{m['role']}: {m['content']}" for m in historial])
-                mensajes = [
-                    {"role": "system", "content": personalidad_usar},
-                    {"role": "user", "content": f"Conversacion actual:\n{contexto}\n\nResponde al ultimo mensaje de {message.author.display_name}: {message.content}"}
-                ]
-                respuesta = groq_client.chat.completions.create(
-                    model="llama3-8b-8192",
-                    messages=mensajes
+                prompt = (
+                    personalidad_usar +
+                    f"\n\nConversacion actual:\n{contexto}\n\n"
+                    f"Responde al ultimo mensaje de {message.author.display_name}: {message.content}"
                 )
-                respuesta_texto = respuesta.choices[0].message.content
+                respuesta = model_ia.generate_content(prompt)
+                respuesta_texto = respuesta.text
                 historial.append({"role": "assistant", "content": respuesta_texto})
                 await message.reply(respuesta_texto)
             except Exception as e:
