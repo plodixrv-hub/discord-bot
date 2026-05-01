@@ -3,12 +3,12 @@ import os
 import time
 import random
 import asyncio
-from google import genai
+from openai import AsyncOpenAI
 from collections import deque
 
 # ---- CONFIGURACION ----
 TOKEN = os.environ["TOKEN"]
-GEMINI_API_KEY = os.environ["GEMINI_API_KEY"]
+OPENAI_API_KEY = os.environ["OPENAI_API_KEY"]
 COOLDOWN = 30
 
 CANAL_MONITOREO = 987654321098765432
@@ -24,8 +24,8 @@ TU_ID = 1202106034424905830
 CANAL_IA = 1442319575940075612
 USUARIOS_BONITOS = []
 IA_ACTIVA = True
-MAX_HISTORIAL = 20
-MENSAJES_A_LEER = 500
+MAX_HISTORIAL = 10
+MENSAJES_A_LEER = 200
 
 TIEMPO_MIN = 45 * 60
 TIEMPO_MAX = 120 * 60
@@ -67,7 +67,7 @@ PERSONALIDAD_RANDOM = (
 ultimo_mensaje = {}
 estilo_usuario = ""
 historial = deque(maxlen=MAX_HISTORIAL)
-genai_client = genai.Client(api_key=GEMINI_API_KEY)
+openai_client = AsyncOpenAI(api_key=OPENAI_API_KEY)
 
 intents = discord.Intents.default()
 intents.message_content = True
@@ -94,8 +94,8 @@ async def cargar_estilo():
         if msg.author.id == TU_ID and msg.content:
             mensajes_usuario.append(msg.content)
     if mensajes_usuario:
-        muestra = "\n".join(mensajes_usuario[:30])
-        estilo_usuario = f"Estos son ejemplos reales de como escribe el usuario, usa esto solo como referencia de estilo:\n{muestra}\n"
+        muestra = "\n".join(mensajes_usuario[:20])
+        estilo_usuario = f"Ejemplos de como escribe el usuario (solo referencia de estilo):\n{muestra}\n"
         print(f"Estilo cargado con {len(mensajes_usuario)} mensajes")
 
 async def mensaje_random():
@@ -108,9 +108,14 @@ async def mensaje_random():
         canal = client.get_channel(CANAL_IA)
         if canal:
             try:
-                prompt = PERSONALIDAD_RANDOM + "\n" + estilo_usuario + "\nmanda algo random para sacar platica"
-                respuesta = genai_client.models.generate_content(model="gemini-2.0-flash", contents=prompt)
-                texto = respuesta.text
+                respuesta = await openai_client.chat.completions.create(
+                    model="gpt-4o-mini",
+                    messages=[
+                        {"role": "system", "content": PERSONALIDAD_RANDOM + "\n" + estilo_usuario},
+                        {"role": "user", "content": "manda algo random para sacar platica"}
+                    ]
+                )
+                texto = respuesta.choices[0].message.content
                 historial.append({"role": "assistant", "content": texto})
                 await canal.send(texto)
             except Exception as e:
@@ -120,7 +125,7 @@ async def mensaje_random():
 async def on_ready():
     print(f"Bot conectado como {client.user}")
     await cargar_estilo()
-    client.loop.create_task(mensaje_random())
+    asyncio.ensure_future(mensaje_random())
 
 @client.event
 async def on_message(message):
@@ -129,32 +134,27 @@ async def on_message(message):
     if message.author == client.user:
         return
 
-    # --- Comando apagar ---
     if message.content == "!apagar" and message.author.id == TU_ID:
         await message.channel.send("Apagando bot... 👋")
         await client.close()
         return
 
-    # --- Comando toggle IA ---
     if message.content == "!ia" and message.author.id == TU_ID:
         IA_ACTIVA = not IA_ACTIVA
         estado = "activada ✅" if IA_ACTIVA else "desactivada ❌"
         await message.channel.send(f"IA {estado}")
         return
 
-    # --- Comando limpiar historial ---
     if message.content == "!limpiar" and message.author.id == TU_ID:
         historial.clear()
         await message.channel.send("Historial limpiado ✅")
         return
 
-    # --- Comando recargar estilo ---
     if message.content == "!recargar" and message.author.id == TU_ID:
         await cargar_estilo()
         await message.channel.send("Estilo recargado ✅")
         return
 
-    # --- Sistema de monitoreo de usuarios ---
     if message.channel.id == CANAL_MONITOREO and message.author.id in USUARIOS:
         ahora = time.time()
         ultimo = ultimo_mensaje.get(message.author.id, 0)
@@ -163,42 +163,36 @@ async def on_message(message):
             texto = USUARIOS[message.author.id].format(mencion=message.author.mention)
             await message.channel.send(texto)
 
-    # --- Sistema de espejo ---
     if message.channel.id == CANAL_ORIGEN and message.author.id == TU_ID:
         canal_destino = client.get_channel(CANAL_DESTINO)
         if canal_destino:
             await canal_destino.send(message.content)
 
-    # --- Guardar mensajes del canal IA en historial ---
     if message.channel.id == CANAL_IA:
         historial.append({
             "role": "user",
             "content": f"{message.author.display_name}: {message.content}"
         })
 
-    # --- Sistema de IA ---
     if message.channel.id == CANAL_IA and IA_ACTIVA and debe_responder(message):
 
         if message.content.strip().lower() == "xiora":
-            respuesta_texto = random.choice(["que paso", "dime", "mande"])
-            await message.reply(respuesta_texto)
+            await message.reply(random.choice(["que paso", "dime", "mande"]))
             return
 
-        if message.author.id in USUARIOS_BONITOS:
-            personalidad_usar = PERSONALIDAD_BONITA
-        else:
-            personalidad_usar = PERSONALIDAD_BASE + "\n" + estilo_usuario
+        personalidad_usar = PERSONALIDAD_BONITA if message.author.id in USUARIOS_BONITOS else PERSONALIDAD_BASE + "\n" + estilo_usuario
 
         async with message.channel.typing():
             try:
                 contexto = "\n".join([f"{m['role']}: {m['content']}" for m in historial])
-                prompt = (
-                    personalidad_usar +
-                    f"\n\nConversacion actual:\n{contexto}\n\n"
-                    f"Responde al ultimo mensaje de {message.author.display_name}: {message.content}"
+                respuesta = await openai_client.chat.completions.create(
+                    model="gpt-4o-mini",
+                    messages=[
+                        {"role": "system", "content": personalidad_usar + f"\n\nConversacion reciente:\n{contexto}"},
+                        {"role": "user", "content": f"{message.author.display_name}: {message.content}"}
+                    ]
                 )
-                respuesta = genai_client.models.generate_content(model="gemini-2.0-flash", contents=prompt)
-                respuesta_texto = respuesta.text
+                respuesta_texto = respuesta.choices[0].message.content
                 historial.append({"role": "assistant", "content": respuesta_texto})
                 await message.reply(respuesta_texto)
             except Exception as e:
