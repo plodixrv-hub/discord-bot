@@ -1,6 +1,8 @@
 import discord
 import os
 import time
+import random
+import asyncio
 from groq import Groq
 from collections import deque
 
@@ -23,6 +25,10 @@ CANAL_IA = 1442319575940075612
 USUARIOS_BONITOS = []
 IA_ACTIVA = True
 MAX_HISTORIAL = 20
+
+# Entre cuanto tiempo manda mensajes solo (en segundos)
+TIEMPO_MIN = 45 * 60   # 45 minutos
+TIEMPO_MAX = 120 * 60  # 2 horas
 
 PERSONALIDAD = (
     "Eres Xiora, un chico joven en un server de Discord con amigos de confianza.\n"
@@ -50,6 +56,17 @@ PERSONALIDAD_BONITA = (
     "- Usas palabras bonitas y emojis tiernos\n"
     "- Haces sentir especial a la persona\n"
 )
+
+PERSONALIDAD_RANDOM = (
+    "Eres Xiora, un chico joven que de repente escribe algo en el chat sin que nadie le hable.\n"
+    "Reglas:\n"
+    "- Manda algo random para sacar platica, como si de repente se te ocurriera algo\n"
+    "- Puede ser una pregunta, una opinion, algo que viste, algo que te paso, una queja random\n"
+    "- Escribe en minusculas, informal, como Discord real\n"
+    "- No escribas parrafos, maximo 3 oraciones pero casi siempre menos\n"
+    "- No empieces con saludos como hola o que onda, ve directo al tema\n"
+    "- Varía siempre, no repitas el mismo tipo de mensaje\n"
+)
 # -----------------------
 
 ultimo_mensaje = {}
@@ -72,9 +89,30 @@ def debe_responder(message):
         return True
     return False
 
+async def mensaje_random():
+    await client.wait_until_ready()
+    while not client.is_closed():
+        espera = random.randint(TIEMPO_MIN, TIEMPO_MAX)
+        await asyncio.sleep(espera)
+        if not IA_ACTIVA:
+            continue
+        canal = client.get_channel(CANAL_IA)
+        if canal:
+            respuesta = groq_client.chat.completions.create(
+                model="llama-3.3-70b-versatile",
+                messages=[
+                    {"role": "system", "content": PERSONALIDAD_RANDOM},
+                    {"role": "user", "content": "manda algo random para sacar platica"}
+                ]
+            )
+            texto = respuesta.choices[0].message.content
+            historial.append({"role": "assistant", "content": texto})
+            await canal.send(texto)
+
 @client.event
 async def on_ready():
     print(f"Bot conectado como {client.user}")
+    client.loop.create_task(mensaje_random())
 
 @client.event
 async def on_message(message):
@@ -117,7 +155,7 @@ async def on_message(message):
         if canal_destino:
             await canal_destino.send(message.content)
 
-   # --- Guardar mensajes del canal IA en historial ---
+    # --- Guardar mensajes del canal IA en historial ---
     if message.channel.id == CANAL_IA:
         historial.append({
             "role": "user",
@@ -127,7 +165,7 @@ async def on_message(message):
     # --- Sistema de IA ---
     if message.channel.id == CANAL_IA and IA_ACTIVA and debe_responder(message):
         ahora = time.time()
-        if ahora - ultimo_mensaje_global_ia >= 2:
+        if ahora - ultimo_mensaje_global_ia >= 60:
             ultimo_mensaje_global_ia = ahora
             if message.author.id in USUARIOS_BONITOS:
                 personalidad_usar = PERSONALIDAD_BONITA
@@ -141,10 +179,7 @@ async def on_message(message):
                     messages=mensajes
                 )
                 respuesta_texto = respuesta.choices[0].message.content
-                historial.append({
-                    "role": "assistant",
-                    "content": respuesta_texto
-                })
+                historial.append({"role": "assistant", "content": respuesta_texto})
                 await message.reply(respuesta_texto)
 
 client.run(TOKEN)
