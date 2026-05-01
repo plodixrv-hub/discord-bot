@@ -4,10 +4,9 @@ import time
 
 # ---- CONFIGURACIÓN ----
 TOKEN = os.environ["TOKEN"]
-USUARIO_ID = 792172637673619466      # Cambia esto por el ID del usuario
+USUARIO_ID = 1438446211400073277     # Cambia esto por el ID del usuario
 CANAL_ID = 1442319575940075612        # Cambia esto por el ID del canal
-MENSAJE_RESPUESTA = "eres un pendejo {mención}"
-COOLDOWN = 30  # segundos
+MENSAJE_RESPUESTA = "ya callate we {mención}"
 # -----------------------
 
 ultimo_mensaje = 0
