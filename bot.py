@@ -25,6 +25,7 @@ CANAL_IA = 1442319575940075612
 # -----------------------
 
 ultimo_mensaje = {}
+ultimo_mensaje_global_ia = 0
 groq_client = Groq(api_key=GROQ_API_KEY)
 
 PERSONALIDAD = """Eres un usuario de Discord muy coqueta y pícara.
@@ -67,15 +68,26 @@ async def on_message(message):
 
    # --- Sistema de IA ---
     if message.channel.id == CANAL_IA:
+        global ultimo_mensaje_global_ia
         ahora = time.time()
-        ultimo = ultimo_mensaje.get(f"ia_{message.author.id}", 0)
-        if ahora - ultimo >= 10:
-            ultimo_mensaje[f"ia_{message.author.id}"] = ahora
+        if ahora - ultimo_mensaje_global_ia >= 60:
+            ultimo_mensaje_global_ia = ahora
+
+            if message.author.id in USUARIOS_BONITOS:
+                personalidad_usar = """Eres un usuario de Discord muy cariñoso y dulce.
+Reglas:
+- Respuestas cortas, máximo 1-2 oraciones
+- Siempre amable, cariñoso y lindo
+- Usas palabras bonitas y emojis tiernos
+- Haces sentir especial a la persona"""
+            else:
+                personalidad_usar = PERSONALIDAD
+
             async with message.channel.typing():
                 respuesta = groq_client.chat.completions.create(
                     model="llama-3.3-70b-versatile",
                     messages=[
-                        {"role": "system", "content": PERSONALIDAD},
+                        {"role": "system", "content": personalidad_usar},
                         {"role": "user", "content": f"{message.author.name} dice: {message.content}"}
                     ]
                 )
