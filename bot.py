@@ -3,7 +3,7 @@ import os
 import time
 import random
 import asyncio
-import google.generativeai as genai
+from google import genai
 from collections import deque
 
 # ---- CONFIGURACION ----
@@ -67,9 +67,7 @@ PERSONALIDAD_RANDOM = (
 ultimo_mensaje = {}
 estilo_usuario = ""
 historial = deque(maxlen=MAX_HISTORIAL)
-
-genai.configure(api_key=GEMINI_API_KEY)
-model_ia = genai.GenerativeModel("gemini-2.0-flash")
+genai_client = genai.Client(api_key=GEMINI_API_KEY)
 
 intents = discord.Intents.default()
 intents.message_content = True
@@ -111,7 +109,7 @@ async def mensaje_random():
         if canal:
             try:
                 prompt = PERSONALIDAD_RANDOM + "\n" + estilo_usuario + "\nmanda algo random para sacar platica"
-                respuesta = model_ia.generate_content(prompt)
+                respuesta = genai_client.models.generate_content(model="gemini-2.0-flash", contents=prompt)
                 texto = respuesta.text
                 historial.append({"role": "assistant", "content": texto})
                 await canal.send(texto)
@@ -199,7 +197,7 @@ async def on_message(message):
                     f"\n\nConversacion actual:\n{contexto}\n\n"
                     f"Responde al ultimo mensaje de {message.author.display_name}: {message.content}"
                 )
-                respuesta = model_ia.generate_content(prompt)
+                respuesta = genai_client.models.generate_content(model="gemini-2.0-flash", contents=prompt)
                 respuesta_texto = respuesta.text
                 historial.append({"role": "assistant", "content": respuesta_texto})
                 await message.reply(respuesta_texto)
