@@ -6,22 +6,29 @@ from groq import Groq
 # ---- CONFIGURACIÓN ----
 TOKEN = os.environ["TOKEN"]
 GROQ_API_KEY = os.environ["GROQ_API_KEY"]
-COOLDOWN = 30  # segundos
+COOLDOWN = 30
 
-# Usuarios a monitorear y sus mensajes
 CANAL_MONITOREO = 987654321098765432
 USUARIOS = {
-    792172637673619466: "eres un pendejo {mención} <:damian:1496621310913286326>",   # Usuario 1
-    1438446211400073277: "ya callate we {mención} <:pooconhappymod:1496682483805323426>",  # Usuario 2
+    792172637673619466: "eres un pendejo {mención} <:damian:1496621310913286326>",
+    1438446211400073277: "ya callate we {mención} <:pooconhappymod:1496682483805323426>",
 }
 
-# Canal espejo
-CANAL_ORIGEN = 1492978765981286593   # canal privado donde tú escribes
-CANAL_DESTINO = 1442319575940075612  # canal general donde se reenvía
-TU_ID = 1202106034424905830          # tu ID de usuario
+CANAL_ORIGEN = 1492978765981286593
+CANAL_DESTINO = 1442319575940075612
+TU_ID = 1202106034424905830
 
-# Canal donde responde la IA
 CANAL_IA = 1442319575940075612
+USUARIOS_BONITOS = []  # Pon aquí los IDs de los usuarios que reciben trato bonito
+
+PERSONALIDAD = """Eres un usuario de Discord muy coqueta y pícara.
+Reglas:
+- Respuestas MUY cortas, máximo 1-2 oraciones
+- Siempre coqueta, flirty y con insinuaciones pícaras
+- Usas emojis sugestivos como 😏🥵😈
+- Nunca directa, siempre insinuando
+- Varía siempre tus respuestas, no repitas lo mismo
+- Haces sentir especial a todos pero de forma pícara"""
 # -----------------------
 
 ultimo_mensaje = {}
@@ -30,7 +37,6 @@ groq_client = Groq(api_key=GROQ_API_KEY)
 
 intents = discord.Intents.default()
 intents.message_content = True
-
 client = discord.Client(intents=intents)
 
 @client.event
@@ -39,6 +45,8 @@ async def on_ready():
 
 @client.event
 async def on_message(message):
+    global ultimo_mensaje_global_ia
+
     if message.author == client.user:
         return
 
@@ -57,31 +65,10 @@ async def on_message(message):
         if canal_destino:
             await canal_destino.send(message.content)
 
-   # --- Sistema de IA ---
+    # --- Sistema de IA ---
     if message.channel.id == CANAL_IA:
-        global ultimo_mensaje_global_ia
         ahora = time.time()
         if ahora - ultimo_mensaje_global_ia >= 60:
             ultimo_mensaje_global_ia = ahora
 
-            if message.author.id in USUARIOS_BONITOS:
-                personalidad_usar = """Eres un usuario de Discord muy cariñoso y dulce.
-Reglas:
-- Respuestas cortas, máximo 1-2 oraciones
-- Siempre amable, cariñoso y lindo
-- Usas palabras bonitas y emojis tiernos
-- Haces sentir especial a la persona"""
-            else:
-                personalidad_usar = PERSONALIDAD
-
-            async with message.channel.typing():
-                respuesta = groq_client.chat.completions.create(
-                    model="llama-3.3-70b-versatile",
-                    messages=[
-                        {"role": "system", "content": personalidad_usar},
-                        {"role": "user", "content": f"{message.author.name} dice: {message.content}"}
-                    ]
-                )
-                await message.reply(respuesta.choices[0].message.content)
-
-client.run(TOKEN)
+            if message.author.id in
