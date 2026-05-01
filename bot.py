@@ -25,32 +25,28 @@ CANAL_IA = 1442319575940075612
 USUARIOS_BONITOS = []
 IA_ACTIVA = True
 MAX_HISTORIAL = 20
+MENSAJES_A_LEER = 500
 
-# Entre cuanto tiempo manda mensajes solo (en segundos)
-TIEMPO_MIN = 45 * 60   # 45 minutos
-TIEMPO_MAX = 120 * 60  # 2 horas
+TIEMPO_MIN = 45 * 60
+TIEMPO_MAX = 120 * 60
 
-PERSONALIDAD = (
-    "Eres Xiora, un chico joven en un server de Discord con amigos de confianza.\n"
+PERSONALIDAD_BASE = (
+    "Eres Xiora, debes imitar EXACTAMENTE el estilo de escritura del usuario basandote en sus mensajes.\n"
     "Reglas:\n"
-    "- Tu nombre es Xiora\n"
-    "- Escribe como gente real en Discord, sin puntuacion perfecta, todo en minusculas\n"
-    "- NO seas siempre afirmativo, a veces discrepa, contradice, o ignora lo que dijeron\n"
-    "- Cambia de tema si se te antoja, haz preguntas random, di algo inesperado\n"
-    "- A veces solo manda un emoji o una reaccion corta\n"
-    "- Si alguien dice algo obvio o estupido, burlatelo\n"
-    "- Si alguien dice algo interesante, engancha con eso\n"
-    "- Usa wey bro xd lmao nel simon ntp segun cuando encaje pero no en cada mensaje\n"
-    "- JAMAS respondas con frases genericas como claro, entendido, que bien\n"
-    "- No escribas parrafos, maximo 3 oraciones pero casi siempre menos\n"
+    "- Copia su forma de escribir, sus palabras favoritas, sus expresiones, sus errores tipicos\n"
+    "- Si el no usa puntuacion, tu tampoco. Si escribe en minusculas, tu igual\n"
+    "- Responde como el responderia, con su mismo tono y personalidad\n"
+    "- NO seas siempre afirmativo, a veces discrepa, contradice o ignora\n"
+    "- Cambia de tema si se te antoja, haz preguntas random\n"
+    "- Maximo 1-3 oraciones, entre menos palabras mejor\n"
     "- Tienes opiniones propias, no le das la razon a todo\n"
+    "- JAMAS uses frases genericas como claro, entendido, que bien\n"
 )
 
 PERSONALIDAD_BONITA = (
     "Eres Xiora, un usuario de Discord muy carinoso y dulce.\n"
     "Reglas:\n"
     "- Tu nombre es Xiora\n"
-    "- Usa el historial para recordar lo que se ha dicho y no repetirte\n"
     "- Respuestas cortas, maximo 2-5 oraciones\n"
     "- Siempre amable, carinoso y lindo\n"
     "- Usas palabras bonitas y emojis tiernos\n"
@@ -60,18 +56,19 @@ PERSONALIDAD_BONITA = (
 PERSONALIDAD_RANDOM = (
     "Eres Xiora, un chico joven que de repente escribe algo en el chat sin que nadie le hable.\n"
     "Reglas:\n"
-    "- Manda algo random para sacar platica, como si de repente se te ocurriera algo\n"
-    "- Puede ser una pregunta, una opinion, algo que viste, algo que te paso, una queja random\n"
+    "- Manda algo random para sacar platica\n"
+    "- Puede ser una pregunta, opinion, queja, algo que viste o que te paso\n"
     "- Escribe en minusculas, informal, como Discord real\n"
-    "- No escribas parrafos, maximo 3 oraciones pero casi siempre menos\n"
-    "- No empieces con saludos como hola o que onda, ve directo al tema\n"
-    "- Varía siempre, no repitas el mismo tipo de mensaje\n"
+    "- Maximo 1-2 oraciones\n"
+    "- No empieces con saludos, ve directo al tema\n"
+    "- Varia siempre, no repitas el mismo tipo de mensaje\n"
 )
 # -----------------------
 
 ultimo_mensaje = {}
 ultimo_mensaje_global_ia = 0
 historial = deque(maxlen=MAX_HISTORIAL)
+estilo_usuario = ""
 groq_client = Groq(api_key=GROQ_API_KEY)
 
 intents = discord.Intents.default()
@@ -89,6 +86,20 @@ def debe_responder(message):
         return True
     return False
 
+async def cargar_estilo():
+    global estilo_usuario
+    canal = client.get_channel(CANAL_IA)
+    if not canal:
+        return
+    mensajes_usuario = []
+    async for msg in canal.history(limit=MENSAJES_A_LEER):
+        if msg.author.id == TU_ID and msg.content:
+            mensajes_usuario.append(msg.content)
+    if mensajes_usuario:
+        muestra = "\n".join(mensajes_usuario[:150])
+        estilo_usuario = f"Estos son ejemplos reales de como escribe el usuario, imita su estilo exactamente:\n{muestra}\n"
+        print(f"Estilo cargado con {len(mensajes_usuario)} mensajes")
+
 async def mensaje_random():
     await client.wait_until_ready()
     while not client.is_closed():
@@ -101,7 +112,7 @@ async def mensaje_random():
             respuesta = groq_client.chat.completions.create(
                 model="llama-3.3-70b-versatile",
                 messages=[
-                    {"role": "system", "content": PERSONALIDAD_RANDOM},
+                    {"role": "system", "content": PERSONALIDAD_RANDOM + "\n" + estilo_usuario},
                     {"role": "user", "content": "manda algo random para sacar platica"}
                 ]
             )
@@ -112,6 +123,7 @@ async def mensaje_random():
 @client.event
 async def on_ready():
     print(f"Bot conectado como {client.user}")
+    await cargar_estilo()
     client.loop.create_task(mensaje_random())
 
 @client.event
@@ -140,6 +152,12 @@ async def on_message(message):
         await message.channel.send("Historial limpiado ✅")
         return
 
+    # --- Comando recargar estilo ---
+    if message.content == "!recargar" and message.author.id == TU_ID:
+        await cargar_estilo()
+        await message.channel.send("Estilo recargado ✅")
+        return
+
     # --- Sistema de monitoreo de usuarios ---
     if message.channel.id == CANAL_MONITOREO and message.author.id in USUARIOS:
         ahora = time.time()
@@ -165,12 +183,19 @@ async def on_message(message):
     # --- Sistema de IA ---
     if message.channel.id == CANAL_IA and IA_ACTIVA and debe_responder(message):
         ahora = time.time()
-        if ahora - ultimo_mensaje_global_ia >= 2:
+        if ahora - ultimo_mensaje_global_ia >= 60:
             ultimo_mensaje_global_ia = ahora
+
+            if message.content.strip().lower() == "xiora":
+                respuesta_texto = random.choice(["que paso", "dime", "mande"])
+                await message.reply(respuesta_texto)
+                return
+
             if message.author.id in USUARIOS_BONITOS:
                 personalidad_usar = PERSONALIDAD_BONITA
             else:
-                personalidad_usar = PERSONALIDAD
+                personalidad_usar = PERSONALIDAD_BASE + "\n" + estilo_usuario
+
             async with message.channel.typing():
                 mensajes = [{"role": "system", "content": personalidad_usar}]
                 mensajes += list(historial)
