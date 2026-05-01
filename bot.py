@@ -107,16 +107,19 @@ async def mensaje_random():
             continue
         canal = client.get_channel(CANAL_IA)
         if canal:
-            respuesta = groq_client.chat.completions.create(
-                model="llama-3.3-70b-versatile",
-                messages=[
-                    {"role": "system", "content": PERSONALIDAD_RANDOM + "\n" + estilo_usuario},
-                    {"role": "user", "content": "manda algo random para sacar platica"}
-                ]
-            )
-            texto = respuesta.choices[0].message.content
-            historial.append({"role": "assistant", "content": texto})
-            await canal.send(texto)
+            try:
+                respuesta = groq_client.chat.completions.create(
+                    model="llama-3.3-70b-versatile",
+                    messages=[
+                        {"role": "system", "content": PERSONALIDAD_RANDOM + "\n" + estilo_usuario},
+                        {"role": "user", "content": "manda algo random para sacar platica"}
+                    ]
+                )
+                texto = respuesta.choices[0].message.content
+                historial.append({"role": "assistant", "content": texto})
+                await canal.send(texto)
+            except Exception as e:
+                print(f"Error mensaje random: {e}")
 
 @client.event
 async def on_ready():
@@ -192,17 +195,21 @@ async def on_message(message):
             personalidad_usar = PERSONALIDAD_BASE + "\n" + estilo_usuario
 
         async with message.channel.typing():
-            contexto = "\n".join([f"{m['role']}: {m['content']}" for m in historial])
-            mensajes = [
-                {"role": "system", "content": personalidad_usar},
-                {"role": "user", "content": f"Conversacion actual:\n{contexto}\n\nResponde al ultimo mensaje de {message.author.display_name}: {message.content}"}
-            ]
-            respuesta = groq_client.chat.completions.create(
-                model="llama-3.3-70b-versatile",
-                messages=mensajes
-            )
-            respuesta_texto = respuesta.choices[0].message.content
-            historial.append({"role": "assistant", "content": respuesta_texto})
-            await message.reply(respuesta_texto)
+            try:
+                contexto = "\n".join([f"{m['role']}: {m['content']}" for m in historial])
+                mensajes = [
+                    {"role": "system", "content": personalidad_usar},
+                    {"role": "user", "content": f"Conversacion actual:\n{contexto}\n\nResponde al ultimo mensaje de {message.author.display_name}: {message.content}"}
+                ]
+                respuesta = groq_client.chat.completions.create(
+                    model="llama-3.3-70b-versatile",
+                    messages=mensajes
+                )
+                respuesta_texto = respuesta.choices[0].message.content
+                historial.append({"role": "assistant", "content": respuesta_texto})
+                await message.reply(respuesta_texto)
+            except Exception as e:
+                print(f"Error IA: {e}")
+                await message.reply("error interno")
 
 client.run(TOKEN)
