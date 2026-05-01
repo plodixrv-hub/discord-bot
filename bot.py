@@ -95,4 +95,13 @@ async def on_message(message):
                 )
                 await message.reply(respuesta.choices[0].message.content)
 
+@client.event
+async def on_message(message):
+    # ... todo el código que ya tienes ...
+
+    # --- Comando apagar ---
+    if message.content == "!apagar" and message.author.id == TU_ID:1202106034424905830
+        await message.channel.send("Apagando bot... 👋")
+        await client.close()
+        
 client.run(TOKEN)
