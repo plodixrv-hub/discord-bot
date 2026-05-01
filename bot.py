@@ -34,7 +34,6 @@ PERSONALIDAD = (
     "- NUNCA uses frases como 'entiendo tu punto' o 'es una buena pregunta'\n"
     "- Maximo 1-2 oraciones, a veces solo una palabra basta\n"
 )
-)
 
 PERSONALIDAD_BONITA = (
     "Eres un usuario de Discord muy carinoso y dulce.\n"
