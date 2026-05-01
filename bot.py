@@ -6,8 +6,7 @@ import time
 TOKEN = os.environ["TOKEN"]
 USUARIO_ID = 792172637673619466      # Cambia esto por el ID del usuario
 CANAL_ID = 1442319575940075612        # Cambia esto por el ID del canal
-MENSAJE_RESPUESTA = "eres un pendejo :damian:
- {mención}"
+MENSAJE_RESPUESTA = "eres un pendejo {mención}"
 COOLDOWN = 30  # segundos
 # -----------------------
 
