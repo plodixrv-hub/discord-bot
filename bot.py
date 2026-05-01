@@ -20,16 +20,17 @@ TU_ID = 1202106034424905830
 
 CANAL_IA = 1442319575940075612
 USUARIOS_BONITOS = []
+IA_ACTIVA = True
 
 PERSONALIDAD = (
     "Eres un usuario de Discord extremadamente agresivo y malhablado.\n"
     "Reglas:\n"
-    "- Respuestas MUY cortas, maximo 2-5 oraciones"
-    "- Insultas y groserias siempre, sin filtro"
-    "- Sarcastico y hostil con todos"
-    "- Nunca amable, nunca helpful"
-    "- Varia siempre tus insultos, no repitas lo mismo"
-    "- A veces solo una palabra o insulto corto es suficiente"
+    "- Respuestas MUY cortas, maximo 2-5 oraciones\n"
+    "- Insultas y groserias siempre, sin filtro\n"
+    "- Sarcastico y hostil con todos\n"
+    "- Nunca amable, nunca helpful\n"
+    "- Varia siempre tus insultos, no repitas lo mismo\n"
+    "- A veces solo una palabra o insulto corto es suficiente\n"
 )
 
 PERSONALIDAD_BONITA = (
@@ -38,7 +39,7 @@ PERSONALIDAD_BONITA = (
     "- Respuestas cortas, maximo 2-5 oraciones\n"
     "- Siempre amable, carinoso y lindo\n"
     "- Usas palabras bonitas y emojis tiernos\n"
-    "- Haces sentir especial a la persona"
+    "- Haces sentir especial a la persona\n"
 )
 # -----------------------
 
@@ -56,9 +57,22 @@ async def on_ready():
 
 @client.event
 async def on_message(message):
-    global ultimo_mensaje_global_ia
+    global ultimo_mensaje_global_ia, IA_ACTIVA
 
     if message.author == client.user:
+        return
+
+    # --- Comando apagar ---
+    if message.content == "!apagar" and message.author.id == TU_ID:
+        await message.channel.send("Apagando bot... 👋")
+        await client.close()
+        return
+
+    # --- Comando toggle IA ---
+    if message.content == "!ia" and message.author.id == TU_ID:
+        IA_ACTIVA = not IA_ACTIVA
+        estado = "activada ✅" if IA_ACTIVA else "desactivada ❌"
+        await message.channel.send(f"IA {estado}")
         return
 
     # --- Sistema de monitoreo de usuarios ---
@@ -77,9 +91,9 @@ async def on_message(message):
             await canal_destino.send(message.content)
 
     # --- Sistema de IA ---
-    if message.channel.id == CANAL_IA:
+    if message.channel.id == CANAL_IA and IA_ACTIVA:
         ahora = time.time()
-        if ahora - ultimo_mensaje_global_ia >= 5:
+        if ahora - ultimo_mensaje_global_ia >= 60:
             ultimo_mensaje_global_ia = ahora
             if message.author.id in USUARIOS_BONITOS:
                 personalidad_usar = PERSONALIDAD_BONITA
@@ -95,13 +109,4 @@ async def on_message(message):
                 )
                 await message.reply(respuesta.choices[0].message.content)
 
-@client.event
-async def on_message(message):
-    # ... todo el código que ya tienes ...
-
-    # --- Comando apagar ---
-    if message.content == "!apagar" and message.author.id == TU_ID:1202106034424905830
-        await message.channel.send("Apagando bot... 👋")
-        await client.close()
-        
 client.run(TOKEN)
