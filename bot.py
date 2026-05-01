@@ -4,13 +4,16 @@ import time
 
 # ---- CONFIGURACIÓN ----
 TOKEN = os.environ["TOKEN"]
-USUARIO_ID = 1438446211400073277     # Cambia esto por el ID del usuario
 CANAL_ID = 1442319575940075612        # Cambia esto por el ID del canal
-MENSAJE_RESPUESTA = "ya callate we {mención}"
-COOLDOWN = 20  # segundos
+COOLDOWN = 60  # segundos
+
+USUARIOS = {
+    1438446211400073277: "ya callate we {mención} <:pooconhappymod:1496682483805323426>",   # Usuario 1
+    792172637673619466: "eres un pendejo {mención} <:damian:1496621310913286326>",  # Usuario 2
+}
 # -----------------------
 
-ultimo_mensaje = 0
+ultimo_mensaje = {}
 
 intents = discord.Intents.default()
 intents.message_content = True
@@ -23,17 +26,15 @@ async def on_ready():
 
 @client.event
 async def on_message(message):
-    global ultimo_mensaje
-
-    # Ignorar mensajes del propio bot
     if message.author == client.user:
         return
 
-    # Verificar canal Y usuario
-    if message.channel.id == CANAL_ID and message.author.id == USUARIO_ID:
+    if message.channel.id == CANAL_ID and message.author.id in USUARIOS:
         ahora = time.time()
-        if ahora - ultimo_mensaje >= COOLDOWN:
-            ultimo_mensaje = ahora
-            await message.channel.send(MENSAJE_RESPUESTA.format(mención=message.author.mention))
+        ultimo = ultimo_mensaje.get(message.author.id, 0)
+        if ahora - ultimo >= COOLDOWN:
+            ultimo_mensaje[message.author.id] = ahora
+            mensaje = USUARIOS[message.author.id].format(mención=message.author.mention)
+            await message.channel.send(mensaje)
 
 client.run(TOKEN)
