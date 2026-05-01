@@ -2,6 +2,7 @@ import discord
 import os
 import time
 from groq import Groq
+from collections import deque
 
 # ---- CONFIGURACION ----
 TOKEN = os.environ["TOKEN"]
@@ -21,6 +22,7 @@ TU_ID = 1202106034424905830
 CANAL_IA = 1442319575940075612
 USUARIOS_BONITOS = []
 IA_ACTIVA = True
+MAX_HISTORIAL = 20
 
 PERSONALIDAD = (
     "Eres Xiora, un chico joven en un server de Discord con amigos de confianza.\n"
@@ -29,6 +31,7 @@ PERSONALIDAD = (
     "- Escribe exactamente como escribe la gente en Discord, informal y relajado\n"
     "- Nada de puntuacion perfecta, minusculas, abreviaciones, errores tipicos\n"
     "- Reacciona al contexto especifico de lo que dijo la persona, no des respuestas genericas\n"
+    "- Usa el historial para recordar lo que se ha dicho y no repetirte\n"
     "- Si algo es gracioso rie, si algo es estupido dilos, si algo es interesante comenta\n"
     "- Insulta naturalmente como lo haria un amigo, no de forma exagerada\n"
     "- Usa wey bro ntp nel simon xd lmao cuando encaje\n"
@@ -40,6 +43,7 @@ PERSONALIDAD_BONITA = (
     "Eres Xiora, un usuario de Discord muy carinoso y dulce.\n"
     "Reglas:\n"
     "- Tu nombre es Xiora\n"
+    "- Usa el historial para recordar lo que se ha dicho y no repetirte\n"
     "- Respuestas cortas, maximo 2-5 oraciones\n"
     "- Siempre amable, carinoso y lindo\n"
     "- Usas palabras bonitas y emojis tiernos\n"
@@ -49,6 +53,7 @@ PERSONALIDAD_BONITA = (
 
 ultimo_mensaje = {}
 ultimo_mensaje_global_ia = 0
+historial = deque(maxlen=MAX_HISTORIAL)
 groq_client = Groq(api_key=GROQ_API_KEY)
 
 intents = discord.Intents.default()
@@ -90,6 +95,12 @@ async def on_message(message):
         await message.channel.send(f"IA {estado}")
         return
 
+    # --- Comando limpiar historial ---
+    if message.content == "!limpiar" and message.author.id == TU_ID:
+        historial.clear()
+        await message.channel.send("Historial limpiado ✅")
+        return
+
     # --- Sistema de monitoreo de usuarios ---
     if message.channel.id == CANAL_MONITOREO and message.author.id in USUARIOS:
         ahora = time.time()
@@ -105,23 +116,34 @@ async def on_message(message):
         if canal_destino:
             await canal_destino.send(message.content)
 
+    # --- Guardar mensajes del canal IA en historial ---
+    if message.channel.id == CANAL_IA:
+        historial.append({
+            "role": "user",
+            "content": f"{message.author.name}: {message.content}"
+        })
+
     # --- Sistema de IA ---
     if message.channel.id == CANAL_IA and IA_ACTIVA and debe_responder(message):
         ahora = time.time()
-        if ahora - ultimo_mensaje_global_ia >= 2:
+        if ahora - ultimo_mensaje_global_ia >= 60:
             ultimo_mensaje_global_ia = ahora
             if message.author.id in USUARIOS_BONITOS:
                 personalidad_usar = PERSONALIDAD_BONITA
             else:
                 personalidad_usar = PERSONALIDAD
             async with message.channel.typing():
+                mensajes = [{"role": "system", "content": personalidad_usar}]
+                mensajes += list(historial)
                 respuesta = groq_client.chat.completions.create(
                     model="llama-3.3-70b-versatile",
-                    messages=[
-                        {"role": "system", "content": personalidad_usar},
-                        {"role": "user", "content": f"{message.author.name} dice: {message.content}"}
-                    ]
+                    messages=mensajes
                 )
-                await message.reply(respuesta.choices[0].message.content)
+                respuesta_texto = respuesta.choices[0].message.content
+                historial.append({
+                    "role": "assistant",
+                    "content": respuesta_texto
+                })
+                await message.reply(respuesta_texto)
 
 client.run(TOKEN)
