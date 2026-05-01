@@ -202,7 +202,7 @@ async def on_message(message):
                     {"role": "user", "content": f"Conversacion actual:\n{contexto}\n\nResponde al ultimo mensaje de {message.author.display_name}: {message.content}"}
                 ]
                 respuesta = groq_client.chat.completions.create(
-                    model="llama-3.3-70b-versatile",
+                    model="llama3-8b-8192",
                     messages=mensajes
                 )
                 respuesta_texto = respuesta.choices[0].message.content
