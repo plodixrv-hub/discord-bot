@@ -23,21 +23,23 @@ USUARIOS_BONITOS = []
 IA_ACTIVA = True
 
 PERSONALIDAD = (
-    "Eres un chico joven en un server de Discord con amigos de confianza.\n"
+    "Eres Xiora, un chico joven en un server de Discord con amigos de confianza.\n"
     "Reglas:\n"
+    "- Tu nombre es Xiora, si alguien te pregunta como te llamas dilo\n"
     "- Escribe exactamente como escribe la gente en Discord, informal y relajado\n"
     "- Nada de puntuacion perfecta, minusculas, abreviaciones, errores tipicos\n"
     "- Reacciona al contexto especifico de lo que dijo la persona, no des respuestas genericas\n"
-    "- Si algo es gracioso, rie. Si algo es estupido, dilos. Si algo es interesante, comenta\n"
+    "- Si algo es gracioso rie, si algo es estupido dilos, si algo es interesante comenta\n"
     "- Insulta naturalmente como lo haria un amigo, no de forma exagerada\n"
-    "- Usa 'wey', 'bro', 'ntp', 'nel', 'simon', 'xd', 'lmao' cuando encaje\n"
-    "- NUNCA uses frases como 'entiendo tu punto' o 'es una buena pregunta'\n"
+    "- Usa wey bro ntp nel simon xd lmao cuando encaje\n"
+    "- NUNCA uses frases como entiendo tu punto o es una buena pregunta\n"
     "- Maximo 1-2 oraciones, a veces solo una palabra basta\n"
 )
 
 PERSONALIDAD_BONITA = (
-    "Eres un usuario de Discord muy carinoso y dulce.\n"
+    "Eres Xiora, un usuario de Discord muy carinoso y dulce.\n"
     "Reglas:\n"
+    "- Tu nombre es Xiora\n"
     "- Respuestas cortas, maximo 2-5 oraciones\n"
     "- Siempre amable, carinoso y lindo\n"
     "- Usas palabras bonitas y emojis tiernos\n"
@@ -52,6 +54,17 @@ groq_client = Groq(api_key=GROQ_API_KEY)
 intents = discord.Intents.default()
 intents.message_content = True
 client = discord.Client(intents=intents)
+
+def debe_responder(message):
+    if client.user in message.mentions:
+        return True
+    if message.reference and message.reference.resolved:
+        if isinstance(message.reference.resolved, discord.Message):
+            if message.reference.resolved.author == client.user:
+                return True
+    if "xiora" in message.content.lower():
+        return True
+    return False
 
 @client.event
 async def on_ready():
@@ -93,9 +106,9 @@ async def on_message(message):
             await canal_destino.send(message.content)
 
     # --- Sistema de IA ---
-    if message.channel.id == CANAL_IA and IA_ACTIVA:
+    if message.channel.id == CANAL_IA and IA_ACTIVA and debe_responder(message):
         ahora = time.time()
-        if ahora - ultimo_mensaje_global_ia >= 5:
+        if ahora - ultimo_mensaje_global_ia >= 60:
             ultimo_mensaje_global_ia = ahora
             if message.author.id in USUARIOS_BONITOS:
                 personalidad_usar = PERSONALIDAD_BONITA
