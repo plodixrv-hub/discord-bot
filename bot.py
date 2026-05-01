@@ -60,16 +60,20 @@ async def on_message(message):
         if canal_destino:
             await canal_destino.send(message.content)
 
-    # --- Sistema de IA ---
+   # --- Sistema de IA ---
     if message.channel.id == CANAL_IA:
-        async with message.channel.typing():
-            respuesta = groq_client.chat.completions.create(
-                model="llama-3.3-70b-versatile",
-                messages=[
-                    {"role": "system", "content": PERSONALIDAD},
-                    {"role": "user", "content": f"{message.author.name} dice: {message.content}"}
-                ]
-            )
-            await message.channel.send(respuesta.choices[0].message.content)
+        ahora = time.time()
+        ultimo = ultimo_mensaje.get(f"ia_{message.author.id}", 0)
+        if ahora - ultimo >= 60:
+            ultimo_mensaje[f"ia_{message.author.id}"] = ahora
+            async with message.channel.typing():
+                respuesta = groq_client.chat.completions.create(
+                    model="llama-3.3-70b-versatile",
+                    messages=[
+                        {"role": "system", "content": PERSONALIDAD},
+                        {"role": "user", "content": f"{message.author.name} dice: {message.content}"}
+                    ]
+                )
+                await message.reply(respuesta.choices[0].message.content)
 
 client.run(TOKEN)
