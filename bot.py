@@ -79,7 +79,7 @@ async def on_message(message):
     # --- Sistema de IA ---
     if message.channel.id == CANAL_IA:
         ahora = time.time()
-        if ahora - ultimo_mensaje_global_ia >= 10:
+        if ahora - ultimo_mensaje_global_ia >= 5:
             ultimo_mensaje_global_ia = ahora
             if message.author.id in USUARIOS_BONITOS:
                 personalidad_usar = PERSONALIDAD_BONITA
