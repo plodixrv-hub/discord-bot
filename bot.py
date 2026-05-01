@@ -1,13 +1,15 @@
 import discord
 import os
 import time
+from groq import Groq
 
 # ---- CONFIGURACIÓN ----
 TOKEN = os.environ["TOKEN"]
-COOLDOWN = 320  # segundos
+GROQ_API_KEY = os.environ["GROQ_API_KEY"]
+COOLDOWN = 30  # segundos
 
 # Usuarios a monitorear y sus mensajes
-CANAL_MONITOREO = 1442319575940075612  # canal donde monitoreas usuarios
+CANAL_MONITOREO = 987654321098765432
 USUARIOS = {
     792172637673619466: "eres un pendejo {mención} <:damian:1496621310913286326>",   # Usuario 1
     1438446211400073277: "ya callate we {mención} <:pooconhappymod:1496682483805323426>",  # Usuario 2
@@ -17,9 +19,17 @@ USUARIOS = {
 CANAL_ORIGEN = 1492978765981286593   # canal privado donde tú escribes
 CANAL_DESTINO = 1442319575940075612  # canal general donde se reenvía
 TU_ID = 1202106034424905830          # tu ID de usuario
+
+# Canal donde responde la IA
+CANAL_IA = 1442319575940075612
 # -----------------------
 
 ultimo_mensaje = {}
+groq_client = Groq(api_key=GROQ_API_KEY)
+
+PERSONALIDAD = """Eres un personaje extremadamente agresivo y malhablado. 
+Insultas a todos los que te hablan, usas groserías constantemente y no tienes filtro. 
+Respondes siempre de forma hostil y sarcástica. Nunca eres amable."""
 
 intents = discord.Intents.default()
 intents.message_content = True
@@ -49,5 +59,17 @@ async def on_message(message):
         canal_destino = client.get_channel(CANAL_DESTINO)
         if canal_destino:
             await canal_destino.send(message.content)
+
+    # --- Sistema de IA ---
+    if message.channel.id == CANAL_IA:
+        async with message.channel.typing():
+            respuesta = groq_client.chat.completions.create(
+                model="llama3-70b-8192",
+                messages=[
+                    {"role": "system", "content": PERSONALIDAD},
+                    {"role": "user", "content": f"{message.author.name} dice: {message.content}"}
+                ]
+            )
+            await message.channel.send(respuesta.choices[0].message.content)
 
 client.run(TOKEN)
