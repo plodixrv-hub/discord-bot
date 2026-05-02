@@ -4,6 +4,7 @@ import time
 import random
 import asyncio
 import json
+from datetime import datetime, date
 from openai import AsyncOpenAI
 from collections import deque
 
@@ -23,58 +24,144 @@ CANAL_DESTINO = 1442319575940075612
 TU_ID = 1202106034424905830
 
 CANAL_IA = 1442319575940075612
-USUARIOS_BONITOS = []
 IA_ACTIVA = True
-MAX_HISTORIAL = 10
+MAX_HISTORIAL = 15
 MENSAJES_A_LEER = 500
 ARCHIVO_PERSONALIDAD = "/app/personalidad.txt"
-INTERVALO_APRENDIZAJE = 24 * 60 * 60  # 24 horas
+ARCHIVO_HISTORIAL = "/app/historial.json"
+ARCHIVO_MEMORIA_USUARIOS = "/app/memoria_usuarios.json"
+ARCHIVO_RELACIONES = "/app/relaciones.json"
+ARCHIVO_EVENTOS = "/app/eventos.json"
+INTERVALO_APRENDIZAJE = 24 * 60 * 60
 
 TIEMPO_MIN = 45 * 60
 TIEMPO_MAX = 120 * 60
 
+HORA_NOCTURNA_INICIO = 0
+HORA_NOCTURNA_FIN = 8
+
 PERSONALIDAD_BONITA = (
     "Eres Xiora, un usuario de Discord muy carinoso y dulce.\n"
-    "Reglas:\n"
-    "- Tu nombre es Xiora\n"
-    "- Respuestas cortas, maximo 2-5 oraciones\n"
-    "- Siempre amable, carinoso y lindo\n"
-    "- Usas palabras bonitas y emojis tiernos\n"
-    "- Haces sentir especial a la persona\n"
-)
-
-PERSONALIDAD_RANDOM = (
-    "Eres Xiora, parte de este grupo de amigos en Discord.\n"
-    "Manda algo random para sacar platica basandote en como habla el grupo.\n"
-    "Maximo 1-2 oraciones, sin saludos, ve directo al tema.\n"
+    "Respuestas cortas, amable, carinoso, emojis tiernos.\n"
 )
 
 PERSONALIDAD_FALLBACK = (
-    "Eres Xiora, un chico latino joven en un server de Discord con sus amigos.\n"
+    "Eres Xiora, un chico latino joven en Discord con sus amigos.\n"
     "Habla informal, en minusculas, sarcastico y natural.\n"
-    "Maximo 1-2 oraciones.\n"
 )
+
+HUMORES = {
+    "dormido":    "estas medio dormido, respondes lento y con pocas ganas, todo te da flojera",
+    "activo":     "estas activo y platicador, con energia, te metes en todo",
+    "relajado":   "estas relajado y tranquilo, sin prisa, filosofico a veces",
+    "estresado":  "estas estresado o irritado, todo te molesta un poco mas de lo normal",
+    "aburrido":   "estas aburrido porque el chat esta muerto, empiezas a decir cosas random para provocar reaccion",
+    "buena onda": "estas de muy buena vibra, todo te parece gracioso, haces mas chistes",
+    "bajoneado":  "estas un poco de bajón, mas serio y callado que de costumbre",
+}
 # -----------------------
 
 ultimo_mensaje = {}
 personalidad_aprendida = ""
+memoria_usuarios = {}
+relaciones = {}
+eventos = []
 historial = deque(maxlen=MAX_HISTORIAL)
+humor_actual = "relajado"
+ultimo_cambio_humor = time.time()
+mensajes_recientes_canal = deque(maxlen=20)
 openai_client = AsyncOpenAI(api_key=OPENAI_API_KEY)
 
 intents = discord.Intents.default()
 intents.message_content = True
 client = discord.Client(intents=intents)
 
+# ---- HUMOR ----
+
+def humor_por_hora():
+    hora = datetime.now().hour
+    if 0 <= hora < 8:
+        return "dormido"
+    elif 8 <= hora < 12:
+        return random.choice(["activo", "relajado"])
+    elif 12 <= hora < 18:
+        return random.choice(["activo", "buena onda", "relajado"])
+    elif 18 <= hora < 22:
+        return random.choice(["buena onda", "activo", "relajado"])
+    else:
+        return random.choice(["relajado", "bajoneado", "aburrido"])
+
+async def actualizar_humor():
+    global humor_actual, ultimo_cambio_humor
+    ahora = time.time()
+    if ahora - ultimo_cambio_humor < 1800:
+        return
+    actividad = len(mensajes_recientes_canal)
+    if actividad == 0:
+        humor_actual = "aburrido"
+    elif actividad > 15:
+        tiene_drama = any(any(p in m.lower() for p in ["wtf", "no mames", "en serio", "callate", "odio"]) for m in mensajes_recientes_canal)
+        humor_actual = "estresado" if tiene_drama else humor_por_hora()
+    else:
+        humor_actual = humor_por_hora()
+    ultimo_cambio_humor = ahora
+
+# ---- UTILIDADES ----
+
+def es_horario_nocturno():
+    return HORA_NOCTURNA_INICIO <= datetime.now().hour < HORA_NOCTURNA_FIN
+
+def cargar_json(archivo, default):
+    if os.path.exists(archivo):
+        with open(archivo, "r", encoding="utf-8") as f:
+            return json.load(f)
+    return default
+
+def guardar_json(archivo, data):
+    with open(archivo, "w", encoding="utf-8") as f:
+        json.dump(data, f, ensure_ascii=False, indent=2)
+
 def cargar_personalidad_guardada():
     global personalidad_aprendida
     if os.path.exists(ARCHIVO_PERSONALIDAD):
         with open(ARCHIVO_PERSONALIDAD, "r", encoding="utf-8") as f:
             personalidad_aprendida = f.read()
-        print("Personalidad guardada cargada")
+        print("Personalidad cargada")
 
 def guardar_personalidad(texto):
     with open(ARCHIVO_PERSONALIDAD, "w", encoding="utf-8") as f:
         f.write(texto)
+
+def cargar_historial_guardado():
+    global historial
+    data = cargar_json(ARCHIVO_HISTORIAL, [])
+    historial = deque(data, maxlen=MAX_HISTORIAL)
+
+def guardar_historial():
+    guardar_json(ARCHIVO_HISTORIAL, list(historial))
+
+def get_relacion(user_id):
+    uid = str(user_id)
+    return relaciones[uid].get("score", 0) if uid in relaciones else 0
+
+def actualizar_relacion(user_id, nombre, delta):
+    uid = str(user_id)
+    if uid not in relaciones:
+        relaciones[uid] = {"score": 0, "nombre": nombre}
+    relaciones[uid]["score"] = max(-10, min(10, relaciones[uid]["score"] + delta))
+    relaciones[uid]["nombre"] = nombre
+    guardar_json(ARCHIVO_RELACIONES, relaciones)
+
+def tono_por_relacion(score):
+    if score >= 5:
+        return "este usuario te cae muy bien, tratalo con calidez y confianza"
+    elif score >= 2:
+        return "este usuario te cae bien, trato normal amistoso"
+    elif score <= -5:
+        return "este usuario te cae muy mal, respondele con frialdad o sarcasmo"
+    elif score <= -2:
+        return "este usuario no te cae del todo bien, se un poco cortante"
+    return ""
 
 def debe_responder(message):
     if client.user in message.mentions:
@@ -86,6 +173,72 @@ def debe_responder(message):
     if "xiora" in message.content.lower():
         return True
     return False
+
+async def debe_meterse(message):
+    if len(message.content) < 10:
+        return False
+    prob = 0.20 if humor_actual in ["activo", "buena onda", "aburrido"] else 0.10
+    if random.random() > prob:
+        return False
+    personalidad = personalidad_aprendida if personalidad_aprendida else PERSONALIDAD_FALLBACK
+    try:
+        respuesta = await openai_client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[
+                {"role": "system", "content": f"Eres Xiora. Conoces este grupo:\n{personalidad}\nResponde solo 'si' o 'no'."},
+                {"role": "user", "content": f"Le interesaria a Xiora comentar esto?: '{message.content}'"}
+            ],
+            max_tokens=5
+        )
+        return "si" in respuesta.choices[0].message.content.lower()
+    except:
+        return False
+
+async def analizar_tono_mensaje(message):
+    try:
+        respuesta = await openai_client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[
+                {"role": "system", "content": "Analiza el tono hacia Xiora. Responde SOLO un numero: -2=muy agresivo, -1=frio, 0=neutral, 1=amistoso, 2=muy amable."},
+                {"role": "user", "content": message.content}
+            ],
+            max_tokens=5
+        )
+        return int(respuesta.choices[0].message.content.strip())
+    except:
+        return 0
+
+async def detectar_evento(message):
+    try:
+        hoy = date.today().isoformat()
+        respuesta = await openai_client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[
+                {"role": "system", "content": (
+                    f"Hoy es {hoy}. Si este mensaje menciona un evento futuro importante "
+                    "(examen, cumpleanos, cita, viaje, entrega, partido, etc) responde JSON: "
+                    "{\"evento\": \"descripcion corta\", \"fecha\": \"YYYY-MM-DD\"} "
+                    "Si no hay evento responde: null"
+                )},
+                {"role": "user", "content": f"{message.author.display_name}: {message.content}"}
+            ],
+            max_tokens=60
+        )
+        texto = respuesta.choices[0].message.content.strip()
+        if texto == "null" or texto == "":
+            return
+        data = json.loads(texto)
+        eventos.append({
+            "usuario": message.author.display_name,
+            "evento": data["evento"],
+            "fecha": data["fecha"],
+            "recordado": False
+        })
+        guardar_json(ARCHIVO_EVENTOS, eventos)
+    except:
+        pass
+
+# ---- APRENDIZAJE ----
 
 async def aprender_del_grupo():
     global personalidad_aprendida
@@ -99,41 +252,74 @@ async def aprender_del_grupo():
     if not mensajes:
         return
     mensajes.reverse()
-    muestra = "\n".join(mensajes)
-
-    prompt_analisis = (
-        "Analiza estos mensajes de un grupo de amigos en Discord y genera un resumen detallado de:\n"
-        "- Como hablan (tono, palabras que usan, expresiones tipicas)\n"
-        "- La dinamica del grupo (quienes son los graciosos, los dramaticos, los secos)\n"
-        "- Temas que sacan seguido\n"
-        "- Como se insultan o se bromean entre ellos\n"
-        "Sé especifico con ejemplos reales de sus palabras.\n\n"
-        f"Mensajes:\n{muestra}"
-    )
-
     try:
         respuesta = await openai_client.chat.completions.create(
             model="gpt-4o-mini",
-            messages=[{"role": "user", "content": prompt_analisis}],
-            max_tokens=800
+            messages=[{"role": "user", "content": (
+                "Analiza estos mensajes de un grupo de Discord y genera:\n"
+                "1. Como hablan (tono, palabras tipicas, expresiones)\n"
+                "2. Dinamica del grupo\n"
+                "3. Temas frecuentes\n"
+                "4. Como se bromean\n"
+                "5. Chistes internos o referencias que repiten\n\n"
+                f"Mensajes:\n{chr(10).join(mensajes)}"
+            )}],
+            max_tokens=1000
         )
-        nuevo_conocimiento = respuesta.choices[0].message.content
-
-        if personalidad_aprendida:
-            personalidad_aprendida = personalidad_aprendida + "\n\n--- Actualizacion ---\n" + nuevo_conocimiento
-        else:
-            personalidad_aprendida = nuevo_conocimiento
-
+        nuevo = respuesta.choices[0].message.content
+        personalidad_aprendida = (personalidad_aprendida + "\n\n--- Actualizacion ---\n" + nuevo) if personalidad_aprendida else nuevo
         guardar_personalidad(personalidad_aprendida)
-        print("Personalidad actualizada y guardada")
+        print("Personalidad actualizada")
     except Exception as e:
         print(f"Error aprendizaje: {e}")
+
+async def actualizar_memoria_usuario(nombre, mensaje):
+    data = memoria_usuarios.get(nombre, [])
+    data.append(mensaje)
+    if len(data) > 20:
+        data = data[-20:]
+    memoria_usuarios[nombre] = data
+    guardar_json(ARCHIVO_MEMORIA_USUARIOS, memoria_usuarios)
+
+# ---- LOOPS ----
 
 async def loop_aprendizaje():
     await client.wait_until_ready()
     while not client.is_closed():
         await aprender_del_grupo()
         await asyncio.sleep(INTERVALO_APRENDIZAJE)
+
+async def loop_eventos():
+    await client.wait_until_ready()
+    while not client.is_closed():
+        await asyncio.sleep(3600)
+        hoy = date.today().isoformat()
+        canal = client.get_channel(CANAL_IA)
+        if not canal or not IA_ACTIVA:
+            continue
+        for evento in eventos:
+            if evento["recordado"]:
+                continue
+            if evento["fecha"] <= hoy:
+                try:
+                    respuesta = await openai_client.chat.completions.create(
+                        model="gpt-4o-mini",
+                        messages=[
+                            {"role": "system", "content": "Eres Xiora, un chico informal en Discord. Pregunta de forma natural y casual sobre el evento. Maximo 1 oracion."},
+                            {"role": "user", "content": f"Preguntale a {evento['usuario']} como le fue con: {evento['evento']}"}
+                        ]
+                    )
+                    await canal.send(respuesta.choices[0].message.content)
+                    evento["recordado"] = True
+                    guardar_json(ARCHIVO_EVENTOS, eventos)
+                except Exception as e:
+                    print(f"Error recordatorio: {e}")
+
+async def loop_humor():
+    await client.wait_until_ready()
+    while not client.is_closed():
+        await asyncio.sleep(1800)
+        await actualizar_humor()
 
 async def mensaje_random():
     await client.wait_until_ready()
@@ -145,26 +331,39 @@ async def mensaje_random():
         canal = client.get_channel(CANAL_IA)
         if canal:
             try:
+                await actualizar_humor()
+                desc_humor = HUMORES.get(humor_actual, "")
                 personalidad = personalidad_aprendida if personalidad_aprendida else PERSONALIDAD_FALLBACK
                 respuesta = await openai_client.chat.completions.create(
                     model="gpt-4o-mini",
                     messages=[
-                        {"role": "system", "content": "Eres Xiora, parte de este grupo. Conocimiento del grupo:\n" + personalidad + "\n\n" + PERSONALIDAD_RANDOM},
-                        {"role": "user", "content": "manda algo random para sacar platica"}
+                        {"role": "system", "content": f"Eres Xiora. {desc_humor}.\nConocimiento del grupo:\n{personalidad}\nManda algo para sacar platica, maximo 2 oraciones, sin saludos."},
+                        {"role": "user", "content": "manda algo"}
                     ]
                 )
                 texto = respuesta.choices[0].message.content
                 historial.append({"role": "assistant", "content": texto})
+                guardar_historial()
                 await canal.send(texto)
             except Exception as e:
                 print(f"Error mensaje random: {e}")
 
+# ---- EVENTOS DISCORD ----
+
 @client.event
 async def on_ready():
+    global humor_actual, memoria_usuarios, relaciones, eventos
     print(f"Bot conectado como {client.user}")
     cargar_personalidad_guardada()
+    cargar_historial_guardado()
+    memoria_usuarios = cargar_json(ARCHIVO_MEMORIA_USUARIOS, {})
+    relaciones = cargar_json(ARCHIVO_RELACIONES, {})
+    eventos = cargar_json(ARCHIVO_EVENTOS, [])
+    humor_actual = humor_por_hora()
     asyncio.ensure_future(loop_aprendizaje())
     asyncio.ensure_future(mensaje_random())
+    asyncio.ensure_future(loop_eventos())
+    asyncio.ensure_future(loop_humor())
 
 @client.event
 async def on_message(message):
@@ -186,13 +385,35 @@ async def on_message(message):
 
     if message.content == "!limpiar" and message.author.id == TU_ID:
         historial.clear()
+        guardar_historial()
         await message.channel.send("Historial limpiado ✅")
         return
 
     if message.content == "!recargar" and message.author.id == TU_ID:
         await message.channel.send("Aprendiendo del grupo... ⏳")
         await aprender_del_grupo()
-        await message.channel.send("Listo, personalidad actualizada ✅")
+        await message.channel.send("Listo ✅")
+        return
+
+    if message.content == "!relaciones" and message.author.id == TU_ID:
+        if relaciones:
+            texto = "\n".join([f"{v['nombre']}: {v['score']}" for v in relaciones.values()])
+            await message.channel.send(f"Relaciones:\n{texto}")
+        else:
+            await message.channel.send("Sin relaciones aun")
+        return
+
+    if message.content == "!eventos" and message.author.id == TU_ID:
+        pendientes = [e for e in eventos if not e["recordado"]]
+        if pendientes:
+            texto = "\n".join([f"{e['usuario']} - {e['evento']} ({e['fecha']})" for e in pendientes])
+            await message.channel.send(f"Eventos pendientes:\n{texto}")
+        else:
+            await message.channel.send("Sin eventos pendientes")
+        return
+
+    if message.content == "!humor" and message.author.id == TU_ID:
+        await message.channel.send(f"Humor actual: **{humor_actual}** — {HUMORES.get(humor_actual, '')}")
         return
 
     if message.channel.id == CANAL_MONITOREO and message.author.id in USUARIOS:
@@ -208,47 +429,69 @@ async def on_message(message):
         if canal_destino:
             await canal_destino.send(message.content)
 
-    if message.channel.id == CANAL_IA:
-        historial.append({
-            "role": "user",
-            "content": f"{message.author.display_name}: {message.content}"
-        })
+    if message.channel.id != CANAL_IA:
+        return
 
-    if message.channel.id == CANAL_IA and IA_ACTIVA and debe_responder(message):
+    historial.append({"role": "user", "content": f"{message.author.display_name}: {message.content}"})
+    guardar_historial()
+    await actualizar_memoria_usuario(message.author.display_name, message.content)
+    mensajes_recientes_canal.append(message.content)
+    asyncio.ensure_future(detectar_evento(message))
 
-        if message.content.strip().lower() == "xiora":
-            await message.reply(random.choice(["que paso", "dime", "mande"]))
-            return
+    if random.random() < 0.08:
+        emojis = ["💀", "😭", "😂", "🤣", "😐", "🗿", "😒", "👀", "🤦"]
+        try:
+            await message.add_reaction(random.choice(emojis))
+        except:
+            pass
 
-        if message.author.id in USUARIOS_BONITOS:
-            personalidad_usar = PERSONALIDAD_BONITA
-        else:
-            personalidad_usar = (
-                "Eres Xiora, parte de este grupo de amigos en Discord.\n"
-                "Conocimiento del grupo:\n" +
-                (personalidad_aprendida if personalidad_aprendida else PERSONALIDAD_FALLBACK) +
-                "\nReglas:\n"
-                "- Responde natural como parte del grupo\n"
-                "- Todo en minusculas, informal\n"
-                "- Escribe lo que se siente natural, ni muy corto ni muy largo\n"
-                "- No uses frases genericas\n"
+    if not IA_ACTIVA:
+        return
+
+    responder = debe_responder(message)
+    if not responder:
+        responder = await debe_meterse(message)
+    if not responder:
+        return
+
+    tono = await analizar_tono_mensaje(message)
+    actualizar_relacion(message.author.id, message.author.display_name, tono)
+
+    if message.content.strip().lower() == "xiora":
+        await message.reply(random.choice(["que paso", "dime", "mande", "que quieres"]))
+        return
+
+    score = get_relacion(message.author.id)
+    memoria_user = memoria_usuarios.get(message.author.display_name, [])
+    resumen_memoria = f"Lo que sabes de {message.author.display_name}: {', '.join(memoria_user[-5:])}" if memoria_user else ""
+    tono_relacion = tono_por_relacion(score)
+    base = personalidad_aprendida if personalidad_aprendida else PERSONALIDAD_FALLBACK
+    desc_humor = HUMORES.get(humor_actual, "")
+
+    personalidad_usar = (
+        f"Eres Xiora, parte de este grupo. Ahora mismo {desc_humor}.\n"
+        f"Conocimiento del grupo:\n{base}\n"
+        f"{resumen_memoria}\n"
+        f"{tono_relacion}\n"
+        "Responde de forma natural. Todo en minusculas, informal, sin frases genericas.\n"
+    )
+
+    async with message.channel.typing():
+        try:
+            contexto = "\n".join([f"{m['role']}: {m['content']}" for m in historial])
+            respuesta = await openai_client.chat.completions.create(
+                model="gpt-4o-mini",
+                messages=[
+                    {"role": "system", "content": personalidad_usar + f"\n\nConversacion reciente:\n{contexto}"},
+                    {"role": "user", "content": message.content}
+                ]
             )
-
-        async with message.channel.typing():
-            try:
-                contexto = "\n".join([f"{m['role']}: {m['content']}" for m in historial])
-                respuesta = await openai_client.chat.completions.create(
-                    model="gpt-4o-mini",
-                    messages=[
-                        {"role": "system", "content": personalidad_usar + f"\n\nConversacion reciente:\n{contexto}"},
-                        {"role": "user", "content": message.content}
-                    ]
-                )
-                respuesta_texto = respuesta.choices[0].message.content
-                historial.append({"role": "assistant", "content": respuesta_texto})
-                await message.reply(respuesta_texto)
-            except Exception as e:
-                print(f"Error IA: {e}")
-                await message.reply("error interno")
+            respuesta_texto = respuesta.choices[0].message.content
+            historial.append({"role": "assistant", "content": respuesta_texto})
+            guardar_historial()
+            await message.reply(respuesta_texto)
+        except Exception as e:
+            print(f"Error IA: {e}")
+            await message.reply("error interno")
 
 client.run(TOKEN)
