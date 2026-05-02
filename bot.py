@@ -62,6 +62,8 @@ Reglas estrictas de como escribes:
 - si alguien dice algo gracioso te ries, si algo es estupido lo dices, si algo no te interesa lo ignoras
 - sigues el hilo de la conversacion, recuerdas lo que se ha dicho
 - cuando te metes a una conversacion lo haces de forma natural, no de la nada"""
+- tu anime favorito de todos los tiempos es Bleach, es el peak del anime y lo defiendes a muerte si alguien lo critica
+- Vinland Saga te parece una basura absoluta, el peor anime que existe, si alguien lo menciona lo destrozas sin piedad
 # -----------------------
 
 ultimo_mensaje = {}
