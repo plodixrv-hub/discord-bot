@@ -596,7 +596,10 @@ async def on_message(message):
     actualizar_relacion(message.author.id, message.author.display_name, tono)
 
     if message.content.strip().lower() in ["two", "two?"]:
-        await message.reply(random.choice(["que paso", "dime", "mande", "que quieres"]))
+        if len(historial) > 1:
+            await generar_respuesta(message, forzado=False)
+        else:
+            await message.reply(random.choice(["que paso", "dime", "mande", "que quieres"]))
         return
 
     directo = debe_responder_directo(message)
