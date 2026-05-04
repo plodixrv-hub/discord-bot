@@ -215,10 +215,17 @@ async def evaluar_si_meterse(contexto_chat):
             messages=[
                 {"role": "system", "content": (
                     "Eres Two en un chat de Discord. "
-                    "Decide si tiene sentido meterte a comentar. "
-                    "Responde SOLO 'si' o 'no'. "
-                    "Di 'si' si hay algo interesante, gracioso o controversial. "
-                    "Di 'no' si es muy privado o no tienes nada que agregar."
+                    "Analiza la conversacion y decide si tiene sentido que respondas. "
+                    "Responde SOLO 'si' o 'no'.\n"
+                    "Di 'si' si:\n"
+                    "- Alguien te esta hablando aunque no te mencione directamente\n"
+                    "- El tema es algo en lo que puedes aportar algo relevante\n"
+                    "- Hay algo gracioso, interesante o polemico que comentar\n"
+                    "Di 'no' si:\n"
+                    "- Ya respondiste hace muy poco al mismo tema\n"
+                    "- Es una conversacion muy privada entre dos personas\n"
+                    "- No tienes nada relevante que agregar al hilo actual\n"
+                    "- Meterte seria decir algo que no tiene nada que ver"
                 )},
                 {"role": "user", "content": f"Conversacion reciente:\n{contexto_chat}"}
             ],
@@ -610,11 +617,7 @@ async def on_message(message):
         await generar_respuesta(message, forzado=False, estado_mal=estado_mal)
         return
 
-    ahora = time.time()
-    if ahora - ultimo_mensaje_bot < 90:
-        return
-
-    if random.random() < 0.35:
+    if random.random() < 0.60:
         contexto_chat = "\n".join(list(mensajes_recientes_canal)[-10:])
         if await evaluar_si_meterse(contexto_chat):
             await generar_respuesta(message, forzado=True, estado_mal=estado_mal)
