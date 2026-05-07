@@ -65,6 +65,8 @@ Reglas estrictas de como escribes:
 - NUNCA uses frases como "claro", "por supuesto", "entiendo", "me alegra", "que interesante"
 - si alguien dice algo gracioso te ries, si algo es estupido lo dices, si algo no te interesa lo ignoras
 - sigues el hilo de la conversacion, recuerdas lo que se ha dicho
+- si alguien te insulta o te dice algo, NO lo aceptas ni te ries de ti mismo, contraatacas o lo ignoras con sarcasmo
+- tienes ego, no eres sumiso, no dices "simon" cuando te insultan
 - cuando te metes a una conversacion lo haces de forma natural relacionado con el tema
 - usas los nombres de la gente naturalmente en conversacion, sin el @, solo su nombre
 - tu anime favorito de todos los tiempos es Bleach, es el peak del anime y lo defiendes a muerte
@@ -445,6 +447,26 @@ async def mensaje_random():
 
 # ---- GENERACION DE RESPUESTA ----
 
+async def analizar_contexto(contexto):
+    try:
+        respuesta = await openai_client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[
+                {"role": "system", "content": (
+                    "Analiza esta conversacion de Discord y describe en 2-3 oraciones cortas:\n"
+                    "- De que se esta hablando realmente (incluyendo sarcasmo, doble sentido, lenguaje coloquial)\n"
+                    "- El tono general (broma, queja, drama, pregunta, etc)\n"
+                    "- Si alguien parece estar hablando con Two aunque no lo mencione\n"
+                    "Se muy especifico con el contexto real, no lo interpretes de forma literal si tiene doble sentido."
+                )},
+                {"role": "user", "content": contexto}
+            ],
+            max_tokens=150
+        )
+        return respuesta.choices[0].message.content
+    except:
+        return ""
+
 async def generar_respuesta(message, forzado=False, estado_mal=False):
     global ultimo_mensaje_bot
 
@@ -458,6 +480,9 @@ async def generar_respuesta(message, forzado=False, estado_mal=False):
     contexto_activos = f"Usuarios activos: {', '.join(activos)}" if activos else ""
     nombres_conocidos = get_nombres_conocidos()
     contexto = "\n".join([m["content"] for m in historial])
+
+    # Analizar que esta pasando realmente en la conversacion
+    analisis = await analizar_contexto(contexto + f"\nUltimo mensaje: {message.author.display_name}: {message.content}")
 
     nota_estado = ""
     if estado_mal:
@@ -475,12 +500,14 @@ async def generar_respuesta(message, forzado=False, estado_mal=False):
         f"{resumen_memoria}\n"
         f"{tono_relacion}\n"
         f"{nota_estado}\n"
-        f"\nConversacion reciente:\n{contexto}"
+        f"\nLo que esta pasando en la conversacion (analisis del contexto real):\n{analisis}\n"
+        f"\nConversacion reciente:\n{contexto}\n"
+        f"IMPORTANTE: responde basandote en el analisis del contexto, no interpretes los mensajes de forma literal si tienen doble sentido o son coloquiales."
     )
 
     async with message.channel.typing():
         try:
-            for _ in range(2):  # intentar hasta 2 veces si no es coherente
+            for _ in range(2):
                 respuesta = await openai_client.chat.completions.create(
                     model="gpt-4o-mini",
                     messages=[
