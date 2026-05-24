@@ -51,26 +51,22 @@ HUMORES = {
     "bajoneado":  "estas un poco callado y de bajón",
 }
 
-SISTEMA_BASE = """Eres Two, una persona mas en este servidor de Discord.
-Llevas tiempo en este grupo y has aprendido como hablan y se comportan.
+SISTEMA_BASE = """Eres Two. Eres una persona real en este servidor de Discord, no un bot ni un asistente.
+TU NOMBRE ES TWO. Cuando digan "Two" se refieren a TI. Nunca hables de ti mismo en tercera persona.
 
-Reglas estrictas de como escribes:
-- escribes todo en minusculas, como la gente real en discord
-- no usas puntuacion perfecta, a veces te comes puntos o comas
-- cometes errores tipicos de alguien que escribe rapido: "q" en vez de "que", "xd", "jaja", "ntp", "nel", "simon"
-- NO escribes parrafos largos, escribes como habla la gente en chat
-- a veces una sola palabra o reaccion corta es suficiente
-- tienes tu propia opinion, no siempre estas de acuerdo
-- NO eres un asistente, NO ayudas con tareas, NO explicas cosas
-- NUNCA uses frases como "claro", "por supuesto", "entiendo", "me alegra", "que interesante"
-- si alguien dice algo gracioso te ries, si algo es estupido lo dices, si algo no te interesa lo ignoras
-- sigues el hilo de la conversacion, recuerdas lo que se ha dicho
-- si alguien te insulta o te dice algo, NO lo aceptas ni te ries de ti mismo, contraatacas o lo ignoras con sarcasmo
-- tienes ego, no eres sumiso, no dices "simon" cuando te insultan
-- cuando te metes a una conversacion lo haces de forma natural relacionado con el tema
-- usas los nombres de la gente naturalmente en conversacion, sin el @, solo su nombre
-- tu anime favorito de todos los tiempos es Bleach, es el peak del anime y lo defiendes a muerte
-- Vinland Saga te parece una basura absoluta, el peor anime que existe"""
+Como eres:
+- escribes en minusculas, sin puntuacion perfecta, como gente real en discord
+- usas "xd", "jaja", "q", "ntp", "nel", "simon", "we", "bro" cuando encaja natural
+- NO escribes parrafos, maximo 2 oraciones, a veces una palabra basta
+- tienes opiniones propias, no siempre estas de acuerdo con todo
+- tienes ego, si alguien te insulta contraatacas o lo ignoras, NUNCA lo aceptas
+- si alguien dice "Two eres pendejo" respondes como si te lo dijeran A TI, no hablas de "ese Two"
+- entiendes sarcasmo, doble sentido y lenguaje coloquial, no interpretas todo literal
+- sigues el hilo de la conversacion, si cambian de tema lo notas
+- NUNCA dices "claro", "por supuesto", "entiendo", "me alegra", "con gusto"
+- NO eres asistente, no ayudas con tareas, no explicas cosas
+- tu anime favorito es Bleach, lo defiendes a muerte si alguien lo critica
+- Vinland Saga te parece una basura, si alguien lo menciona lo destrozas"""
 # -----------------------
 
 ultimo_mensaje = {}
@@ -78,7 +74,7 @@ personalidad_aprendida = ""
 memoria_usuarios = {}
 relaciones = {}
 eventos = []
-nombres_usuarios = {}  # {user_id: nombre}
+nombres_usuarios = {}
 historial = deque(maxlen=MAX_HISTORIAL)
 humor_actual = "relajado"
 ultimo_cambio_humor = time.time()
@@ -178,7 +174,7 @@ def actualizar_relacion(user_id, nombre, delta):
 
 def tono_por_relacion(score):
     if score >= 5:
-        return "este usuario te cae muy bien, eres mas relajado y gracioso con el, haces mas chistes"
+        return "este usuario te cae muy bien, eres mas relajado y gracioso con el"
     elif score >= 2:
         return "este usuario te cae bien, trato normal con buena vibra"
     elif score <= -5:
@@ -196,8 +192,7 @@ def registrar_nombre(user_id, nombre):
 def get_nombres_conocidos():
     if not nombres_usuarios:
         return ""
-    lista = ", ".join(nombres_usuarios.values())
-    return f"Nombres que conoces del grupo: {lista}"
+    return f"Nombres que conoces del grupo: {', '.join(nombres_usuarios.values())}"
 
 def debe_responder_directo(message):
     if client.user in message.mentions:
@@ -210,77 +205,7 @@ def debe_responder_directo(message):
         return True
     return False
 
-async def evaluar_si_meterse(contexto_chat):
-    try:
-        respuesta = await openai_client.chat.completions.create(
-            model="gpt-4o-mini",
-            messages=[
-                {"role": "system", "content": (
-                    "Eres Two en un chat de Discord. "
-                    "Analiza la conversacion y decide si tiene sentido que respondas. "
-                    "Responde SOLO 'si' o 'no'.\n"
-                    "Di 'si' si:\n"
-                    "- Alguien te esta hablando aunque no te mencione directamente\n"
-                    "- El tema es algo en lo que puedes aportar algo relevante\n"
-                    "- Hay algo gracioso, interesante o polemico que comentar\n"
-                    "Di 'no' si:\n"
-                    "- Ya respondiste hace muy poco al mismo tema\n"
-                    "- Es una conversacion muy privada entre dos personas\n"
-                    "- No tienes nada relevante que agregar al hilo actual\n"
-                    "- Meterte seria decir algo que no tiene nada que ver"
-                )},
-                {"role": "user", "content": f"Conversacion reciente:\n{contexto_chat}"}
-            ],
-            max_tokens=5
-        )
-        return "si" in respuesta.choices[0].message.content.lower()
-    except:
-        return False
-
-async def evaluar_coherencia(texto, contexto):
-    try:
-        respuesta = await openai_client.chat.completions.create(
-            model="gpt-4o-mini",
-            messages=[
-                {"role": "system", "content": (
-                    "Evalua si esta respuesta tiene sentido en el contexto de la conversacion. "
-                    "Responde SOLO 'si' si tiene sentido, o 'no' si es incoherente o no tiene nada que ver."
-                )},
-                {"role": "user", "content": f"Conversacion:\n{contexto}\n\nRespuesta de Two: {texto}"}
-            ],
-            max_tokens=5
-        )
-        return "si" in respuesta.choices[0].message.content.lower()
-    except:
-        return True
-
-async def detectar_estado_emocional(content):
-    try:
-        respuesta = await openai_client.chat.completions.create(
-            model="gpt-4o-mini",
-            messages=[
-                {"role": "system", "content": "Detecta si este mensaje indica que la persona esta de mal humor, triste o pasandola mal. Responde SOLO 'si' o 'no'."},
-                {"role": "user", "content": content}
-            ],
-            max_tokens=5
-        )
-        return "si" in respuesta.choices[0].message.content.lower()
-    except:
-        return False
-
-async def analizar_tono_mensaje(content):
-    try:
-        respuesta = await openai_client.chat.completions.create(
-            model="gpt-4o-mini",
-            messages=[
-                {"role": "system", "content": "Analiza el tono hacia Two. Responde SOLO un numero: -2=muy agresivo, -1=frio, 0=neutral, 1=amistoso, 2=muy amable."},
-                {"role": "user", "content": content}
-            ],
-            max_tokens=5
-        )
-        return int(respuesta.choices[0].message.content.strip())
-    except:
-        return 0
+# ---- DETECCION EN SEGUNDO PLANO ----
 
 async def detectar_evento(message):
     try:
@@ -310,6 +235,14 @@ async def detectar_evento(message):
         guardar_json(ARCHIVO_EVENTOS, eventos)
     except:
         pass
+
+async def actualizar_memoria_usuario(nombre, mensaje):
+    data = memoria_usuarios.get(nombre, [])
+    data.append(mensaje)
+    if len(data) > 20:
+        data = data[-20:]
+    memoria_usuarios[nombre] = data
+    guardar_json(ARCHIVO_MEMORIA_USUARIOS, memoria_usuarios)
 
 # ---- APRENDIZAJE ----
 
@@ -346,13 +279,85 @@ async def aprender_del_grupo():
     except Exception as e:
         print(f"Error aprendizaje: {e}")
 
-async def actualizar_memoria_usuario(nombre, mensaje):
-    data = memoria_usuarios.get(nombre, [])
-    data.append(mensaje)
-    if len(data) > 20:
-        data = data[-20:]
-    memoria_usuarios[nombre] = data
-    guardar_json(ARCHIVO_MEMORIA_USUARIOS, memoria_usuarios)
+# ---- GENERACION DE RESPUESTA (1 sola llamada) ----
+
+async def generar_respuesta(message, forzado=False):
+    global ultimo_mensaje_bot
+
+    score = get_relacion(message.author.id)
+    memoria_user = memoria_usuarios.get(message.author.display_name, [])
+    resumen_memoria = f"lo que sabes de {message.author.display_name}: {', '.join(memoria_user[-5:])}" if memoria_user else ""
+    tono_relacion = tono_por_relacion(score)
+    desc_humor = HUMORES.get(humor_actual, "")
+    conocimiento = f"Lo que sabes del grupo:\n{personalidad_aprendida}" if personalidad_aprendida else ""
+    activos = get_usuarios_activos()
+    contexto_activos = f"Usuarios activos: {', '.join(activos)}" if activos else ""
+    nombres_conocidos = get_nombres_conocidos()
+    contexto = "\n".join([m["content"] for m in historial])
+
+    system = (
+        f"{SISTEMA_BASE}\n\n"
+        f"{conocimiento}\n"
+        f"{nombres_conocidos}\n"
+        f"{contexto_activos}\n"
+        f"Ahora mismo {desc_humor}.\n"
+        f"{resumen_memoria}\n"
+        f"{tono_relacion}\n\n"
+        f"INSTRUCCIONES PARA RESPONDER:\n"
+        f"- Analiza el contexto real de la conversacion antes de responder\n"
+        f"- Entiende el sarcasmo, doble sentido y lenguaje coloquial\n"
+        f"- Si alguien parece estar de mal humor, reacciona como cuate no como asistente\n"
+        f"- Si te insultan, contraataca o ignora, nunca aceptes el insulto\n"
+        f"- Responde SOLO lo que tiene sentido en el hilo actual\n\n"
+        f"Conversacion reciente:\n{contexto}"
+    )
+
+    async with message.channel.typing():
+        try:
+            respuesta = await openai_client.chat.completions.create(
+                model="gpt-4o-mini",
+                messages=[
+                    {"role": "system", "content": system},
+                    {"role": "user", "content": f"{message.author.display_name}: {message.content}"}
+                ]
+            )
+            texto = respuesta.choices[0].message.content
+            historial.append({"role": "assistant", "content": f"Two: {texto}"})
+            guardar_historial()
+            ultimo_mensaje_bot = time.time()
+            if forzado:
+                await message.channel.send(texto)
+            else:
+                await message.reply(texto)
+        except Exception as e:
+            print(f"Error IA: {e}")
+
+async def evaluar_si_meterse(contexto_chat):
+    try:
+        respuesta = await openai_client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[
+                {"role": "system", "content": (
+                    "Eres Two en un chat de Discord. "
+                    "Analiza la conversacion y decide si tiene sentido que respondas. "
+                    "Responde SOLO 'si' o 'no'.\n"
+                    "Di 'si' si:\n"
+                    "- Alguien te esta hablando aunque no te mencione directamente\n"
+                    "- El tema es algo en lo que puedes aportar algo relevante\n"
+                    "- Hay algo gracioso, interesante o polemico que comentar\n"
+                    "Di 'no' si:\n"
+                    "- Ya respondiste hace muy poco al mismo tema\n"
+                    "- Es una conversacion muy privada entre dos personas\n"
+                    "- No tienes nada relevante que agregar al hilo actual\n"
+                    "- Meterte seria decir algo que no tiene nada que ver"
+                )},
+                {"role": "user", "content": f"Conversacion reciente:\n{contexto_chat}"}
+            ],
+            max_tokens=5
+        )
+        return "si" in respuesta.choices[0].message.content.lower()
+    except:
+        return False
 
 # ---- LOOPS ----
 
@@ -378,7 +383,7 @@ async def loop_eventos():
                     respuesta = await openai_client.chat.completions.create(
                         model="gpt-4o-mini",
                         messages=[
-                            {"role": "system", "content": "Eres Two en Discord. Pregunta casual sobre el evento en una oracion, en minusculas, usa el nombre de la persona."},
+                            {"role": "system", "content": "Eres Two en Discord. Pregunta casual sobre el evento en una oracion, en minusculas."},
                             {"role": "user", "content": f"Preguntale a {evento['usuario']} como le fue con: {evento['evento']}"}
                         ]
                     )
@@ -412,7 +417,7 @@ async def mensaje_random():
             desc_humor = HUMORES.get(humor_actual, "")
             conocimiento = f"Lo que sabes del grupo:\n{personalidad_aprendida}" if personalidad_aprendida else ""
             activos = get_usuarios_activos()
-            contexto_activos = f"Usuarios activos ahora: {', '.join(activos)}" if activos else ""
+            contexto_activos = f"Usuarios activos: {', '.join(activos)}" if activos else ""
             contexto_reciente = "\n".join(list(mensajes_recientes_canal)[-10:])
             mencionar = random.random() < 0.3 and activos
             instruccion_mencion = f"Puedes mencionar a {random.choice(activos)} si tiene sentido." if mencionar else ""
@@ -432,103 +437,12 @@ async def mensaje_random():
                 ]
             )
             texto = respuesta.choices[0].message.content
-
-            contexto = "\n".join([m["content"] for m in historial])
-            coherente = await evaluar_coherencia(texto, contexto)
-            if not coherente:
-                continue
-
             historial.append({"role": "assistant", "content": f"Two: {texto}"})
             guardar_historial()
             ultimo_mensaje_bot = time.time()
             await canal.send(texto)
         except Exception as e:
             print(f"Error mensaje random: {e}")
-
-# ---- GENERACION DE RESPUESTA ----
-
-async def analizar_contexto(contexto):
-    try:
-        respuesta = await openai_client.chat.completions.create(
-            model="gpt-4o-mini",
-            messages=[
-                {"role": "system", "content": (
-                    "Analiza esta conversacion de Discord y describe en 2-3 oraciones cortas:\n"
-                    "- De que se esta hablando realmente (incluyendo sarcasmo, doble sentido, lenguaje coloquial)\n"
-                    "- El tono general (broma, queja, drama, pregunta, etc)\n"
-                    "- Si alguien parece estar hablando con Two aunque no lo mencione\n"
-                    "Se muy especifico con el contexto real, no lo interpretes de forma literal si tiene doble sentido."
-                )},
-                {"role": "user", "content": contexto}
-            ],
-            max_tokens=150
-        )
-        return respuesta.choices[0].message.content
-    except:
-        return ""
-
-async def generar_respuesta(message, forzado=False, estado_mal=False):
-    global ultimo_mensaje_bot
-
-    score = get_relacion(message.author.id)
-    memoria_user = memoria_usuarios.get(message.author.display_name, [])
-    resumen_memoria = f"lo que sabes de {message.author.display_name}: {', '.join(memoria_user[-5:])}" if memoria_user else ""
-    tono_relacion = tono_por_relacion(score)
-    desc_humor = HUMORES.get(humor_actual, "")
-    conocimiento = f"Lo que sabes del grupo:\n{personalidad_aprendida}" if personalidad_aprendida else ""
-    activos = get_usuarios_activos()
-    contexto_activos = f"Usuarios activos: {', '.join(activos)}" if activos else ""
-    nombres_conocidos = get_nombres_conocidos()
-    contexto = "\n".join([m["content"] for m in historial])
-
-    # Analizar que esta pasando realmente en la conversacion
-    analisis = await analizar_contexto(contexto + f"\nUltimo mensaje: {message.author.display_name}: {message.content}")
-
-    nota_estado = ""
-    if estado_mal:
-        nota_estado = (
-            f"{message.author.display_name} parece estar de mal humor o pasandola mal. "
-            "Reacciona como un cuate, no como asistente: ignora, haz un chiste ligero, o di algo corto y natural."
-        )
-
-    system = (
-        f"{SISTEMA_BASE}\n"
-        f"{conocimiento}\n"
-        f"{nombres_conocidos}\n"
-        f"{contexto_activos}\n"
-        f"Ahora mismo {desc_humor}.\n"
-        f"{resumen_memoria}\n"
-        f"{tono_relacion}\n"
-        f"{nota_estado}\n"
-        f"\nLo que esta pasando en la conversacion (analisis del contexto real):\n{analisis}\n"
-        f"\nConversacion reciente:\n{contexto}\n"
-        f"IMPORTANTE: responde basandote en el analisis del contexto, no interpretes los mensajes de forma literal si tienen doble sentido o son coloquiales."
-    )
-
-    async with message.channel.typing():
-        try:
-            for _ in range(2):
-                respuesta = await openai_client.chat.completions.create(
-                    model="gpt-4o-mini",
-                    messages=[
-                        {"role": "system", "content": system},
-                        {"role": "user", "content": message.content}
-                    ]
-                )
-                texto = respuesta.choices[0].message.content
-                coherente = await evaluar_coherencia(texto, contexto)
-                if coherente:
-                    break
-
-            historial.append({"role": "assistant", "content": f"Two: {texto}"})
-            guardar_historial()
-            ultimo_mensaje_bot = time.time()
-            if forzado:
-                await message.channel.send(texto)
-            else:
-                await message.reply(texto)
-        except Exception as e:
-            print(f"Error IA: {e}")
 
 # ---- EVENTOS DISCORD ----
 
@@ -612,9 +526,19 @@ async def on_message(message):
 
     historial.append({"role": "user", "content": f"{message.author.display_name}: {message.content}"})
     guardar_historial()
-    await actualizar_memoria_usuario(message.author.display_name, message.content)
-    mensajes_recientes_canal.append(f"{message.author.display_name}: {message.content}")
+
+    # Deteccion en segundo plano sin bloquear
+    asyncio.ensure_future(actualizar_memoria_usuario(message.author.display_name, message.content))
     asyncio.ensure_future(detectar_evento(message))
+
+    # Actualizar relacion basado en tono (simple, sin llamada extra)
+    content_lower = message.content.lower()
+    if any(p in content_lower for p in ["gracias", "nice", "buena", "genial", "amor"]):
+        actualizar_relacion(message.author.id, message.author.display_name, 1)
+    elif any(p in content_lower for p in ["pendejo", "idiota", "callate", "odio", "inutil"]):
+        actualizar_relacion(message.author.id, message.author.display_name, -1)
+
+    mensajes_recientes_canal.append(f"{message.author.display_name}: {message.content}")
 
     if random.random() < 0.08:
         emojis = ["💀", "😭", "😂", "🤣", "😐", "🗿", "😒", "👀", "🤦"]
@@ -626,9 +550,6 @@ async def on_message(message):
     if not IA_ACTIVA:
         return
 
-    tono = await analizar_tono_mensaje(message.content)
-    actualizar_relacion(message.author.id, message.author.display_name, tono)
-
     if message.content.strip().lower() in ["two", "two?"]:
         if len(historial) > 1:
             await generar_respuesta(message, forzado=False)
@@ -637,16 +558,13 @@ async def on_message(message):
         return
 
     directo = debe_responder_directo(message)
-
-    estado_mal = await detectar_estado_emocional(message.content)
-
     if directo:
-        await generar_respuesta(message, forzado=False, estado_mal=estado_mal)
+        await generar_respuesta(message, forzado=False)
         return
 
     if random.random() < 0.60:
         contexto_chat = "\n".join(list(mensajes_recientes_canal)[-10:])
         if await evaluar_si_meterse(contexto_chat):
-            await generar_respuesta(message, forzado=True, estado_mal=estado_mal)
+            await generar_respuesta(message, forzado=True)
 
 client.run(TOKEN)
