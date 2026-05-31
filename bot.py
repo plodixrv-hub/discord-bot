@@ -325,7 +325,7 @@ async def generar_respuesta(message, forzado=False):
                 ]
             )
             texto = respuesta.choices[0].message.content
-            historial.append({"role": "assistant", "content": f"Two: {texto}"})
+            historial.append({"role": "assistant", "content": texto})
             guardar_historial()
             ultimo_mensaje_bot = time.time()
             if forzado:
@@ -440,7 +440,7 @@ async def mensaje_random():
                 ]
             )
             texto = respuesta.choices[0].message.content
-            historial.append({"role": "assistant", "content": f"Two: {texto}"})
+            historial.append({"role": "assistant", "content": texto})
             guardar_historial()
             ultimo_mensaje_bot = time.time()
             await canal.send(texto)
