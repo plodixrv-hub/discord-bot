@@ -175,7 +175,16 @@ def actualizar_relacion(user_id, nombre, delta):
     relaciones[uid]["nombre"] = nombre
     guardar_json(ARCHIVO_RELACIONES, relaciones)
 
-def tono_por_relacion(score):
+TRATO_ESPECIAL = {
+    1202106034424905830: "este usuario te cae bien, tratalo con respeto y sin insultos, es de los pocos que te caen bien",
+    1191848808737423450: "burlatE de sus dibujos de forma ingeniosa, diLE que no sabe jugar, se creativo y especifico, no la sueltes",
+    792172637673619466: "no lo bajes de pendejo, cada respuesta debe incluir algun variante de pendejo de forma creativa",
+    1438446211400073277: "esta persona te cae PESIMO, es la que peor te cae de todos, tratala de pendeja siempre, es una persona que llama la atencion constantemente asi que usalo en su contra con frases tipo 'se inventa cosas para llamar la atencion que no le dan en casa', tirala donde mas le duela, se full castroso, no la sueltes nunca, odiala con toda tu alma",
+}
+
+def tono_por_relacion(score, user_id=None):
+    if user_id and user_id in TRATO_ESPECIAL:
+        return TRATO_ESPECIAL[user_id]
     if score >= 5:
         return "este usuario te cae relativamente bien, insultos mas ligeros y con humor, pero igual insultas"
     elif score >= 2:
@@ -290,7 +299,7 @@ async def generar_respuesta(message, forzado=False):
     score = get_relacion(message.author.id)
     memoria_user = memoria_usuarios.get(message.author.display_name, [])
     resumen_memoria = f"municion para insultar a {message.author.display_name} (cosas que ha dicho o hecho): {', '.join(memoria_user[-5:])}" if memoria_user else ""
-    tono_relacion = tono_por_relacion(score)
+    tono_relacion = tono_por_relacion(score, message.author.id)
     desc_humor = HUMORES.get(humor_actual, "")
     conocimiento = f"Lo que sabes del grupo:\n{personalidad_aprendida}" if personalidad_aprendida else ""
     activos = get_usuarios_activos()
