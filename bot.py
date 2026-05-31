@@ -562,6 +562,13 @@ async def on_message(message):
     if not IA_ACTIVA:
         return
 
+    # Detectar spam de emotes especificos
+    emotes_troll = [":daisy:", ":laekis:"]
+    conteo_emotes = sum(message.content.lower().count(e) for e in emotes_troll)
+    if conteo_emotes >= 3:
+        await generar_respuesta(message, forzado=True)
+        return
+
     if message.content.strip().lower() in ["two", "two?"]:
         if len(historial) > 1:
             await generar_respuesta(message, forzado=False)
@@ -573,10 +580,5 @@ async def on_message(message):
     if directo:
         await generar_respuesta(message, forzado=False)
         return
-
-    if random.random() < 0.60:
-        contexto_chat = "\n".join(list(mensajes_recientes_canal)[-10:])
-        if await evaluar_si_meterse(contexto_chat):
-            await generar_respuesta(message, forzado=True)
 
 client.run(TOKEN)
